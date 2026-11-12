@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.local
+server/database.json
+server/database.json.tmp
+server/database.sqlite
+server/database.sqlite-shm
+server/database.sqlite-wal
+server/backups/
+server/cache/
+server/uploads/
+test-results/
+playwright-report/
