@@ -15,12 +15,20 @@
       <label>Username<input v-model="username" autocomplete="username" name="admin-username" placeholder="Enter admin username" required /></label>
       <label>Password<input v-model="password" type="password" autocomplete="current-password" name="admin-password" placeholder="Enter password" required /></label>
       <button class="login-button" type="submit" :disabled="loading">{{ loading ? "Authenticating..." : "Sign in securely" }}</button>
-      <small v-if="error" class="login-error">{{ error }}</small>
+      <small v-if="error" class="login-error" role="alert">{{ error }}</small>
     </form>
   </main>
 
   <main v-else class="admin-shell">
-    <AdminSidebar :tab="tab" :stats="stats" :open-ticket-count="openTicketCount" @select="selectTab" @logout="logout" />
+    <AdminSidebar
+      :tab="tab"
+      :stats="stats"
+      :open-ticket-count="openTicketCount"
+      :agent-pending-count="pendingAgentReviews"
+      :referral-pending-count="referralReviews.length"
+      @select="selectTab"
+      @logout="logout"
+    />
 
     <section class="workspace">
       <header class="workspace-header">
@@ -29,8 +37,8 @@
           <h1>{{ pageTitle }}</h1>
         </div>
         <div class="header-actions">
-          <span class="live-status"><i></i> Live</span>
-          <span class="refresh-time">Updated {{ lastRefreshTime }}</span>
+          <span class="live-status" aria-label="Automatic refresh enabled"><i></i> Auto-refresh</span>
+          <span class="refresh-time" :title="`Last successful update at ${lastRefreshTime}`">Updated {{ lastRefreshTime }}</span>
           <button class="icon-button" type="button" aria-label="Refresh data" title="Refresh data" :disabled="refreshing" @click="refresh">
             <RefreshCw :size="17" :class="{ 'refresh-spinning': refreshing }" />
           </button>
@@ -40,6 +48,16 @@
         Could not refresh dashboard data: {{ refreshError }}
         <button type="button" @click="refresh">Try again</button>
       </p>
+      <div
+        v-if="adminFeedback"
+        class="admin-feedback"
+        :class="{ 'admin-feedback-error': adminFeedback.type === 'error' }"
+        :role="adminFeedback.type === 'error' ? 'alert' : 'status'"
+        aria-live="polite"
+      >
+        <span>{{ adminFeedback.message }}</span>
+        <button type="button" aria-label="Dismiss message" @click="adminFeedback = null">Dismiss</button>
+      </div>
 
     <section v-if="tab === 'overview'" class="overview-page">
       <section class="overview-welcome">
@@ -66,7 +84,9 @@
     <section v-if="tab === 'overview'" class="panel overview-panel">
       <div class="overview-panel-heading">
         <div><span class="overview-eyebrow">ACTION CENTER</span><h2>Needs your attention</h2></div>
-        <span class="overview-queue-total">{{ stats.pendingRequests + stats.pendingKyc + referralReviews.length }} pending reviews</span>
+        <span class="overview-queue-total" :class="{ 'queue-clear': pendingActionCount === 0 }" role="status" aria-live="polite">
+          {{ pendingActionCount ? `${pendingActionCount} items need attention` : "All caught up" }}
+        </span>
       </div>
       <div class="overview-grid">
         <button type="button" class="overview-action-card" @click="selectTab('transactions')">
@@ -81,10 +101,22 @@
           <b>{{ stats.pendingKyc }}</b>
           <ChevronRight :size="16" />
         </button>
+        <button type="button" class="overview-action-card" @click="selectTab('agents')">
+          <span class="overview-action-icon agents"><Network :size="18" /></span>
+          <span class="overview-action-copy"><strong>Agent operations</strong><small>Applications, funds and limits</small></span>
+          <b>{{ pendingAgentReviews }}</b>
+          <ChevronRight :size="16" />
+        </button>
         <button type="button" class="overview-action-card" @click="selectTab('referrals')">
           <span class="overview-action-icon referral"><Gift :size="18" /></span>
           <span class="overview-action-copy"><strong>Referral rewards</strong><small>Reward decisions</small></span>
           <b>{{ referralReviews.length }}</b>
+          <ChevronRight :size="16" />
+        </button>
+        <button type="button" class="overview-action-card" @click="selectTab('support')">
+          <span class="overview-action-icon support"><LifeBuoy :size="18" /></span>
+          <span class="overview-action-copy"><strong>Support inbox</strong><small>Open customer requests</small></span>
+          <b>{{ openTicketCount }}</b>
           <ChevronRight :size="16" />
         </button>
       </div>
@@ -273,24 +305,45 @@
     </section>
 
     <section v-if="tab === 'users'" class="panel">
-      <h2>Users</h2>
-      <div class="toolbar">
+      <div class="panel-heading">
+        <div><h2>User management</h2><p>Search, filter, activate, suspend, or adjust an account balance.</p></div>
+        <span class="user-result-count">{{ filteredUsers.length }} of {{ users.length }} accounts</span>
+      </div>
+      <div class="toolbar users-toolbar">
         <input v-model="userSearch" type="search" placeholder="Search username or email" aria-label="Search users" />
         <select v-model="countryFilter" aria-label="Filter country">
           <option value="">All countries</option>
           <option value="IN">India</option>
           <option value="PK">Pakistan</option>
         </select>
+        <select v-model="userRoleFilter" aria-label="Filter account type">
+          <option value="">All account types</option>
+          <option value="user">Players</option>
+          <option value="agent">Agents</option>
+        </select>
+        <select v-model="userStatusFilter" aria-label="Filter account status">
+          <option value="">All account statuses</option>
+          <option value="active">Active</option>
+          <option value="suspended">Suspended</option>
+        </select>
+        <select v-model="userKycFilter" aria-label="Filter identity verification status">
+          <option value="">All verification statuses</option>
+          <option value="verified">Verified</option>
+          <option value="pending">Pending</option>
+          <option value="rejected">Rejected</option>
+          <option value="not_submitted">Not submitted</option>
+        </select>
       </div>
       <article v-for="account in filteredUsers" :key="account.id" class="row">
         <div>
           <strong>{{ account.username }}</strong>
-          <span>{{ account.email }} · {{ account.country === "PK" ? "Pakistan" : account.country === "IN" ? "India" : "Country not set" }}</span>
+          <span>{{ account.email }} · {{ account.role === "agent" ? "Agent" : "Player" }} · {{ account.country === "PK" ? "Pakistan" : account.country === "IN" ? "India" : "Country not set" }}</span>
         </div>
         <div class="meta">Rs. {{ money(account.balance) }} · {{ account.status }}</div>
         <button class="secondary" @click="adjustBalance(account)">Adjust Balance</button>
         <button @click="toggleUser(account)">{{ account.status === "active" ? "Suspend" : "Activate" }}</button>
       </article>
+      <p v-if="filteredUsers.length === 0" class="empty">No accounts match the selected filters.</p>
     </section>
 
     <section v-if="tab === 'agents'" class="panel agent-admin-panel">
@@ -404,8 +457,8 @@
         </div>
         <div :class="item.status">{{ item.status }}</div>
         <div v-if="item.status === 'pending'" class="actions">
-          <button @click="processTransaction(item.id, 'approved')">Approve</button>
-          <button class="reject" @click="processTransaction(item.id, 'rejected')">Reject</button>
+          <button @click="processTransaction(item, 'approved')">Approve</button>
+          <button class="reject" @click="processTransaction(item, 'rejected')">Reject</button>
         </div>
       </article>
       <p v-if="filteredTransactions.length === 0" class="empty">No matching transactions</p>
@@ -452,7 +505,7 @@
           <span>{{ ticket.username }} · {{ formatDate(ticket.createdAt) }}</span>
           <p>{{ ticket.message }}</p>
         </div>
-        <select :value="ticket.status" @change="updateSupportTicket(ticket, ($event.target as HTMLSelectElement).value)">
+        <select :value="ticket.status" :disabled="supportUpdating[ticket.id]" @change="updateSupportTicket(ticket, ($event.target as HTMLSelectElement).value)">
           <option value="open">Open</option>
           <option value="pending">Pending</option>
           <option value="resolved">Resolved</option>
@@ -496,7 +549,7 @@
           </article>
           <p v-if="platformSettings.promotions.length === 0" class="empty">No offers configured. Add an offer to show it to members.</p>
         </section>
-        <button class="primary-button" type="submit">Save promotions</button>
+        <button class="primary-button" type="submit" :disabled="platformSettingsSaving">{{ platformSettingsSaving ? "Saving promotions…" : "Save promotions" }}</button>
       </form>
       <small class="form-message" role="status">{{ settingsMessage }}</small>
       <section class="promotion-admin-section rewards-admin-section">
@@ -575,11 +628,24 @@
             <label>Jackpot display amount (Rs.)<input v-model.number="platformSettings.jackpotAmount" type="number" min="0" max="1000000000000" step="0.01" required /></label>
           </div>
         </section>
-        <button class="primary-button" type="submit">Save platform settings</button>
+        <button class="primary-button" type="submit" :disabled="platformSettingsSaving">{{ platformSettingsSaving ? "Saving settings…" : "Save platform settings" }}</button>
       </form>
       <small class="form-message" role="status">{{ settingsMessage }}</small>
       <p class="google-config-note">Google Sign-In is configured through the server environment variable <code>GOOGLE_CLIENT_ID</code>. Set the matching web client ID in your Google Cloud OAuth client and add your production domain to its authorized JavaScript origins. Restart the API after changing the value.</p>
     </section>
+    <AdminActionDialog
+      v-if="actionDialog"
+      :open="true"
+      :title="actionDialog.title"
+      :description="actionDialog.description"
+      :fields="actionDialog.fields"
+      :confirm-label="actionDialog.confirmLabel"
+      :danger="actionDialog.danger"
+      :busy="actionDialogBusy"
+      :error="actionDialogError"
+      @cancel="closeActionDialog"
+      @confirm="submitActionDialog"
+    />
     </section>
   </main>
 </template>
@@ -591,6 +657,8 @@ import {
   ChevronRight,
   CircleCheck,
   Gift,
+  LifeBuoy,
+  Network,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -598,11 +666,33 @@ import {
   Wallet,
 } from "lucide-vue-next";
 import { useSessionStore } from "./stores/session";
+import AdminActionDialog from "./components/AdminActionDialog.vue";
 import AdminSidebar from "./components/AdminSidebar.vue";
 import b9Logo from "./assets/b9-logo.webp";
 
+type AdminActionField = {
+  name: string;
+  label: string;
+  type?: "text" | "number" | "textarea";
+  initialValue?: string;
+  min?: number;
+  max?: number;
+  step?: number | "any";
+  maxLength?: number;
+  required?: boolean;
+  placeholder?: string;
+  rows?: number;
+};
+type AdminActionConfig = {
+  title: string;
+  description?: string;
+  confirmLabel: string;
+  danger?: boolean;
+  fields: AdminActionField[];
+  successMessage: string;
+};
 type Account = {
-  id: string; username: string; email: string; phone: string; country: string; balance: number; status: string;
+  id: string; username: string; email: string; phone: string; country: string; role: string; balance: number; status: string;
   fullName: string; documentType: string; documentNumber: string; kycStatus: string; kycDocuments: Record<string, string>;
 };
 type AgentApplication = { id: string; username: string; email: string; country: string; businessName: string; experience: string; createdAt: string };
@@ -612,7 +702,7 @@ type AgentLimitRequest = { id: string; agentUsername: string; playerUsername: st
 type AgentRecord = { id: string; username: string; country: string; balance: number };
 type AgentData = { applications: AgentApplication[]; agents: AgentRecord[]; requests: AgentRequest[]; commissions: AgentCommission[]; limits: AgentLimitRequest[] };
 type ReferralReview = { id: string; createdAt: string; referrerId: string; referrerUsername: string; referrerCountry: string; referredUsername: string };
-type Transaction = { id: string; username: string; type: string; amount: number; status: string; paymentMethod?: string; paymentReference?: string; paymentNote?: string; proofFile?: string };
+type Transaction = { id: string; username: string; type: string; amount: number; status: string; paymentMethod?: string; paymentReference?: string; paymentNote?: string; proofFile?: string; createdAt?: string };
 type AuditLog = { id: string; action: string; target: string; details: string; createdAt: string };
 type SupportTicket = { id: string; username: string; subject: string; message: string; status: string; reply: string; createdAt: string; updatedAt: string };
 type Promotion = { id: string; title: string; description: string; reward: string; terms: string; active: boolean; bannerImage: string; bannerIncludesText: boolean };
@@ -637,6 +727,11 @@ const username = ref("");
 const password = ref("");
 const loading = ref(false);
 const error = ref("");
+const adminFeedback = ref<{ message: string; type: "success" | "error" } | null>(null);
+const actionDialog = ref<AdminActionConfig | null>(null);
+const actionDialogBusy = ref(false);
+const actionDialogError = ref("");
+let actionDialogHandler: ((values: Record<string, string>) => Promise<void>) | null = null;
 const tab = ref<"overview" | "games" | "users" | "agents" | "referrals" | "kyc" | "transactions" | "results" | "activity" | "support" | "promotions" | "settings">("overview");
 const stats = ref({ totalUsers: 0, activeUsers: 0, totalBalance: 0, pendingRequests: 0, indiaUsers: 0, pakistanUsers: 0, pendingKyc: 0, approvedDeposits: 0, approvedWithdrawals: 0 });
 const users = ref<Account[]>([]);
@@ -646,6 +741,9 @@ const referralReviews = ref<ReferralReview[]>([]);
 const activityLogs = ref<AuditLog[]>([]);
 const userSearch = ref("");
 const countryFilter = ref("");
+const userRoleFilter = ref("");
+const userStatusFilter = ref("");
+const userKycFilter = ref("");
 const transactionSearch = ref("");
 const transactionStatusFilter = ref("");
 const transactionTypeFilter = ref("");
@@ -661,6 +759,7 @@ const lastRefreshTime = ref("just now");
 const refreshing = ref(false);
 const refreshError = ref("");
 const supportTickets = ref<SupportTicket[]>([]);
+const supportUpdating = ref<Record<string, boolean>>({});
 const managedProviders = ref<ManagedProvider[]>([]);
 const providerLogoUploading = ref<Record<string, boolean>>({});
 const managedGames = ref<ManagedGame[]>([]);
@@ -709,6 +808,15 @@ const filteredManagedGames = computed(() => managedGames.value.filter((game) => 
 const allFilteredManagedGamesSelected = computed(() => filteredManagedGames.value.length > 0
   && filteredManagedGames.value.every((game) => selectedManagedGameIds.value.includes(game.id)));
 const openTicketCount = computed(() => supportTickets.value.filter((ticket) => ticket.status !== "resolved").length);
+const pendingAgentReviews = computed(() => agentData.value.applications.length
+  + agentData.value.requests.length
+  + agentData.value.commissions.length
+  + agentData.value.limits.length);
+const pendingActionCount = computed(() => stats.value.pendingRequests
+  + stats.value.pendingKyc
+  + pendingAgentReviews.value
+  + referralReviews.value.length
+  + openTicketCount.value);
 const platformSettings = ref({
   announcement: "",
   maintenanceMode: false,
@@ -746,6 +854,7 @@ const rewardSettings = ref<RewardSettings>({
 const rewardSettingsMessage = ref("");
 const rewardSettingsSaving = ref(false);
 const settingsMessage = ref("");
+const platformSettingsSaving = ref(false);
 const bannerUploading = ref<Record<string, boolean>>({});
 const bannerPreviewUrls = ref<Record<string, string>>({});
 let refreshTimer: number | undefined;
@@ -758,8 +867,11 @@ const filteredUsers = computed(() => {
   const search = userSearch.value.trim().toLowerCase();
   return users.value.filter((account) => {
     const matchesCountry = !countryFilter.value || account.country === countryFilter.value;
+    const matchesRole = !userRoleFilter.value || account.role === userRoleFilter.value;
+    const matchesStatus = !userStatusFilter.value || account.status === userStatusFilter.value;
+    const matchesKyc = !userKycFilter.value || account.kycStatus === userKycFilter.value;
     const matchesSearch = !search || account.username.toLowerCase().includes(search) || account.email.toLowerCase().includes(search);
-    return matchesCountry && matchesSearch;
+    return matchesCountry && matchesRole && matchesStatus && matchesKyc && matchesSearch;
   });
 });
 const filteredTransactions = computed(() => {
@@ -796,6 +908,49 @@ function selectTab(value: string) {
       void loadBonusCodes();
       void loadRewardSettings();
     }
+  }
+}
+
+function reportAdminError(error: unknown, fallback: string): void {
+  adminFeedback.value = {
+    message: error instanceof Error ? error.message : fallback,
+    type: "error",
+  };
+}
+
+function openActionDialog(
+  config: AdminActionConfig,
+  handler: (values: Record<string, string>) => Promise<void>,
+): void {
+  if (actionDialogBusy.value) return;
+  adminFeedback.value = null;
+  actionDialogError.value = "";
+  actionDialogHandler = handler;
+  actionDialog.value = config;
+}
+
+function closeActionDialog(): void {
+  if (actionDialogBusy.value) return;
+  actionDialog.value = null;
+  actionDialogHandler = null;
+  actionDialogError.value = "";
+}
+
+async function submitActionDialog(values: Record<string, string>): Promise<void> {
+  if (!actionDialogHandler || actionDialogBusy.value || !actionDialog.value) return;
+  const handler = actionDialogHandler;
+  const config = actionDialog.value;
+  actionDialogBusy.value = true;
+  actionDialogError.value = "";
+  try {
+    await handler(values);
+    actionDialog.value = null;
+    actionDialogHandler = null;
+    adminFeedback.value = { message: config.successMessage, type: "success" };
+  } catch (caught) {
+    actionDialogError.value = caught instanceof Error ? caught.message : "The action could not be completed.";
+  } finally {
+    actionDialogBusy.value = false;
   }
 }
 
@@ -858,6 +1013,7 @@ async function uploadPromotionBanner(promotion: Promotion, event: Event): Promis
       headers,
       body: form,
     });
+    handleUnauthorized(response);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Could not upload promotion banner");
     clearBannerPreview(promotion.id);
@@ -877,12 +1033,17 @@ async function api(path: string, options: RequestInit = {}) {
   if (token.value) headers.set("Authorization", "Bearer " + token.value);
   const response = await fetch(path, { ...options, headers });
   const data = await response.json().catch(() => ({}));
+  handleUnauthorized(response);
   if (!response.ok) {
     const error = new Error(data.error || "Request failed");
     Object.assign(error, { status: response.status });
     throw error;
   }
   return data;
+}
+
+function handleUnauthorized(response: Response): void {
+  if (response.status === 401 && signedIn.value) logout();
 }
 
 async function loadGameManagement() {
@@ -1110,6 +1271,7 @@ async function uploadGameThumbnail(gameId: string, file: File) {
     headers,
     body: form,
   });
+  handleUnauthorized(response);
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "Could not upload game thumbnail");
   return data.game as ManagedGame;
@@ -1145,6 +1307,7 @@ async function uploadProviderLogo(provider: ManagedProvider, event: Event) {
       headers,
       body: form,
     });
+    handleUnauthorized(response);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Could not upload provider logo");
     await loadGameManagement();
@@ -1157,15 +1320,19 @@ async function uploadProviderLogo(provider: ManagedProvider, event: Event) {
   }
 }
 
-async function removeManagedGame(game: ManagedGame) {
-  if (!window.confirm(`Remove ${game.name} from the public game listing? Its provider record will be kept.`)) return;
-  try {
+function removeManagedGame(game: ManagedGame): void {
+  openActionDialog({
+    title: "Remove game from catalog",
+    description: `Remove ${game.name} from the public game listing? Its provider record will be kept.`,
+    confirmLabel: "Remove game",
+    danger: true,
+    fields: [],
+    successMessage: "Game removed from the public listing.",
+  }, async () => {
     await api(`/api/admin/game-management/games/${encodeURIComponent(game.id)}`, { method: "DELETE" });
     await loadGameManagement();
     gameManagementMessage.value = "Game disabled from the public listing; its provider record was retained.";
-  } catch (caught) {
-    gameManagementMessage.value = caught instanceof Error ? caught.message : "Could not remove game";
-  }
+  });
 }
 
 async function saveCatalogPageSize() {
@@ -1213,7 +1380,7 @@ async function refresh() {
   refreshing.value = true;
   refreshError.value = "";
   try {
-    const [statsData, usersData, transactionsData, activityData, supportData, settingsData, agentsData, referralsData] = await Promise.all([
+    const results = await Promise.allSettled([
       api("/api/admin/stats"),
       api("/api/admin/users"),
       api("/api/admin/transactions"),
@@ -1222,15 +1389,33 @@ async function refresh() {
       api("/api/admin/settings"),
       api("/api/admin/agents"),
       api("/api/admin/referrals"),
-    ]);
-    stats.value = statsData;
-    users.value = usersData.users;
-    transactions.value = transactionsData.transactions;
-    activityLogs.value = activityData.logs;
-    supportTickets.value = supportData.tickets;
-    agentData.value = agentsData;
-    referralReviews.value = referralsData.referrals;
-    platformSettings.value = { ...platformSettings.value, ...settingsData.settings };
+    ] as const);
+    const [statsResult, usersResult, transactionsResult, activityResult, supportResult, settingsResult, agentsResult, referralsResult] = results;
+    if (results.some((result) => result.status === "rejected"
+      && result.reason instanceof Error
+      && "status" in result.reason
+      && result.reason.status === 401)) {
+      logout();
+      return;
+    }
+
+    const failures: string[] = [];
+    function updateResult<T>(result: PromiseSettledResult<T>, name: string, update: (data: T) => void): void {
+      if (result.status === "fulfilled") {
+        update(result.value);
+      } else {
+        failures.push(`${name}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      }
+    }
+    updateResult(statsResult, "statistics", (data) => { stats.value = data; });
+    updateResult(usersResult, "users", (data) => { users.value = data.users; });
+    updateResult(transactionsResult, "transactions", (data) => { transactions.value = data.transactions; });
+    updateResult(activityResult, "activity", (data) => { activityLogs.value = data.logs; });
+    updateResult(supportResult, "support", (data) => { supportTickets.value = data.tickets; });
+    updateResult(settingsResult, "settings", (data) => { platformSettings.value = { ...platformSettings.value, ...data.settings }; });
+    updateResult(agentsResult, "agents", (data) => { agentData.value = data; });
+    updateResult(referralsResult, "referrals", (data) => { referralReviews.value = data.referrals; });
+    refreshError.value = failures.length ? failures.join(" · ") : "";
     if (tab.value === "games") await loadGameManagement();
     if (tab.value === "promotions") await Promise.all([loadBonusCodes(), loadRewardSettings()]);
     lastRefreshTime.value = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -1249,7 +1434,7 @@ async function loadAgentData() {
   try {
     agentData.value = await api("/api/admin/agents");
   } catch (error) {
-    window.alert(error instanceof Error ? error.message : "Could not load agent operations.");
+    reportAdminError(error, "Could not load agent operations.");
   }
 }
 
@@ -1258,7 +1443,7 @@ async function loadReferralData() {
     const data = await api("/api/admin/referrals");
     referralReviews.value = data.referrals;
   } catch (error) {
-    window.alert(error instanceof Error ? error.message : "Could not load referral rewards.");
+    reportAdminError(error, "Could not load referral rewards.");
   }
 }
 
@@ -1351,34 +1536,67 @@ async function toggleBonusCode(code: BonusCode) {
   }
 }
 
-async function reviewReferral(referral: ReferralReview, status: "approved" | "rejected") {
-  const amount = status === "approved"
-    ? window.prompt(`Reward amount for referring user ${referral.referrerUsername}:`)
-    : undefined;
-  if (status === "approved" && amount === null) return;
-  const note = status === "rejected" ? window.prompt("Optional reason for rejection:") : "";
-  if (note === null) return;
-  try {
+function reviewReferral(referral: ReferralReview, status: "approved" | "rejected"): void {
+  const fields: AdminActionField[] = status === "approved"
+    ? [{
+      name: "amount",
+      label: "Reward amount (Rs.)",
+      type: "number",
+      min: 0.01,
+      max: 100000000,
+      step: 0.01,
+    }]
+    : [{
+      name: "note",
+      label: "Reason for rejection (optional)",
+      type: "textarea",
+      maxLength: 500,
+      required: false,
+    }];
+  openActionDialog({
+    title: status === "approved" ? "Approve referral reward" : "Reject referral",
+    description: status === "approved"
+      ? `Confirm the reward amount for ${referral.referrerUsername}. Approval credits the reward to their wallet.`
+      : `Reject the referral for ${referral.referrerUsername}.`,
+    confirmLabel: status === "approved" ? "Approve & credit" : "Reject referral",
+    danger: status === "rejected",
+    fields,
+    successMessage: status === "approved" ? "Referral approved and reward credited." : "Referral rejected.",
+  }, async (values) => {
+    const amount = Number(values.amount);
+    if (status === "approved" && (!Number.isFinite(amount) || amount < 0.01 || amount > 100000000)) {
+      throw new Error("Enter a valid reward amount.");
+    }
     await api(`/api/admin/referrals/${referral.id}`, {
       method: "PATCH",
       body: JSON.stringify({
         status,
-        ...(status === "approved" ? { amount: Number(amount) } : {}),
-        note: note || "",
+        ...(status === "approved" ? { amount } : {}),
+        note: values.note || "",
       }),
     });
     await refresh();
-  } catch (error) {
-    window.alert(error instanceof Error ? error.message : "Could not review referral reward.");
-  }
+  });
 }
 
-async function toggleUser(account: Account) {
-  await api(`/api/admin/users/${account.id}`, {
-    method: "PATCH",
-    body: JSON.stringify({ status: account.status === "active" ? "suspended" : "active" }),
+function toggleUser(account: Account): void {
+  const status = account.status === "active" ? "suspended" : "active";
+  openActionDialog({
+    title: status === "suspended" ? "Suspend account" : "Reactivate account",
+    description: status === "suspended"
+      ? `Suspend ${account.username}? They will no longer be able to use their account.`
+      : `Restore account access for ${account.username}?`,
+    confirmLabel: status === "suspended" ? "Suspend account" : "Reactivate account",
+    danger: status === "suspended",
+    fields: [],
+    successMessage: status === "suspended" ? "Account suspended." : "Account reactivated.",
+  }, async () => {
+    await api(`/api/admin/users/${account.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+    await refresh();
   });
-  await refresh();
 }
 
 function formatAgentDate(value: string): string {
@@ -1394,105 +1612,202 @@ function agentRequestLabel(type: string): string {
   } as Record<string, string>)[type] || type;
 }
 
-async function reviewAgentApplication(application: AgentApplication, status: "approved" | "rejected") {
-  try {
+function reviewAgentApplication(application: AgentApplication, status: "approved" | "rejected"): void {
+  openActionDialog({
+    title: status === "approved" ? "Approve agent application" : "Reject agent application",
+    description: `${status === "approved" ? "Approve" : "Reject"} ${application.username}'s application for ${application.businessName}?`,
+    confirmLabel: status === "approved" ? "Approve application" : "Reject application",
+    danger: status === "rejected",
+    fields: [],
+    successMessage: status === "approved" ? "Agent application approved." : "Agent application rejected.",
+  }, async () => {
     await api(`/api/admin/agents/applications/${application.id}`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
     });
     await refresh();
-  } catch (error) {
-    window.alert(error instanceof Error ? error.message : "Could not review agent application.");
-  }
+  });
 }
 
-async function reviewAgentRequest(request: AgentRequest, status: "approved" | "rejected") {
-  try {
-    const note = status === "rejected" ? window.prompt("Optional reason for rejection:") || "" : "";
-    await api(`/api/admin/agents/requests/${request.id}`, { method: "PATCH", body: JSON.stringify({ status, note }) });
+function reviewAgentRequest(request: AgentRequest, status: "approved" | "rejected"): void {
+  openActionDialog({
+    title: status === "approved" ? "Approve agent transaction" : "Reject agent transaction",
+    description: `${request.type.replaceAll("_", " ")} for ${request.agentUsername} · Rs. ${money(request.amount)}. ${
+      status === "approved" ? "Verify the transaction details before approving." : "This will decline the request."
+    }`,
+    confirmLabel: status === "approved" ? "Approve transaction" : "Reject transaction",
+    danger: status === "rejected",
+    fields: status === "rejected"
+      ? [{ name: "note", label: "Reason for rejection (optional)", type: "textarea", maxLength: 500, required: false }]
+      : [],
+    successMessage: status === "approved" ? "Agent transaction approved." : "Agent transaction rejected.",
+  }, async (values) => {
+    await api(`/api/admin/agents/requests/${request.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, note: values.note || "" }),
+    });
     await refresh();
-  } catch (error) {
-    window.alert(error instanceof Error ? error.message : "Could not review agent request.");
-  }
+  });
 }
 
-async function addAgentCommission(agent: AgentRecord) {
-  const amount = window.prompt(`Commission amount for ${agent.username}:`);
-  if (amount === null) return;
-  const periodLabel = window.prompt("Commission period or description (for example, Week of Nov 10):");
-  if (!periodLabel) return;
-  try {
+function addAgentCommission(agent: AgentRecord): void {
+  openActionDialog({
+    title: `Add commission for ${agent.username}`,
+    description: "Create a pending commission record. It will not be paid until separately approved.",
+    confirmLabel: "Create commission",
+    fields: [
+      { name: "amount", label: "Commission amount (Rs.)", type: "number", min: 0.01, max: 100000000, step: 0.01 },
+      { name: "periodLabel", label: "Period or description", maxLength: 80, placeholder: "For example, Week of Nov 10" },
+    ],
+    successMessage: "Commission created as pending.",
+  }, async (values) => {
+    const amount = Number(values.amount);
+    if (!Number.isFinite(amount) || amount < 0.01 || amount > 100000000) {
+      throw new Error("Enter a valid commission amount.");
+    }
+    const periodLabel = values.periodLabel.trim();
+    if (!periodLabel) throw new Error("Enter a commission period or description.");
     await api(`/api/admin/agents/${agent.id}/commissions`, {
       method: "POST",
-      body: JSON.stringify({ amount: Number(amount), periodLabel }),
+      body: JSON.stringify({ amount, periodLabel }),
     });
     await refresh();
-  } catch (error) {
-    window.alert(error instanceof Error ? error.message : "Could not add commission.");
-  }
+  });
 }
 
-async function reviewAgentCommission(commission: AgentCommission, status: "paid" | "rejected") {
-  try {
-    const note = status === "rejected" ? window.prompt("Optional reason for rejection:") || "" : "";
+function reviewAgentCommission(commission: AgentCommission, status: "paid" | "rejected"): void {
+  openActionDialog({
+    title: status === "paid" ? "Pay agent commission" : "Reject agent commission",
+    description: `${status === "paid" ? "Mark" : "Reject"} the Rs. ${money(commission.amount)} commission for ${commission.agentUsername} (${commission.periodLabel})?`,
+    confirmLabel: status === "paid" ? "Mark as paid" : "Reject commission",
+    danger: status === "rejected",
+    fields: status === "rejected"
+      ? [{ name: "note", label: "Reason for rejection (optional)", type: "textarea", maxLength: 500, required: false }]
+      : [],
+    successMessage: status === "paid" ? "Commission marked as paid." : "Commission rejected.",
+  }, async (values) => {
     await api(`/api/admin/agents/commissions/${commission.id}`, {
-      method: "PATCH", body: JSON.stringify({ status, note }),
+      method: "PATCH", body: JSON.stringify({ status, note: values.note || "" }),
     });
     await refresh();
-  } catch (error) {
-    window.alert(error instanceof Error ? error.message : "Could not review commission.");
-  }
+  });
 }
 
-async function reviewAgentLimit(request: AgentLimitRequest, status: "approved" | "rejected") {
-  try {
-    const note = status === "rejected" ? window.prompt("Optional reason for rejection:") || "" : "";
+function reviewAgentLimit(request: AgentLimitRequest, status: "approved" | "rejected"): void {
+  openActionDialog({
+    title: status === "approved" ? "Approve player limit" : "Reject player limit",
+    description: `${status === "approved" ? "Approve" : "Reject"} the Rs. ${money(request.limit)} limit request for ${request.playerUsername}?`,
+    confirmLabel: status === "approved" ? "Approve limit" : "Reject limit",
+    danger: status === "rejected",
+    fields: status === "rejected"
+      ? [{ name: "note", label: "Reason for rejection (optional)", type: "textarea", maxLength: 500, required: false }]
+      : [],
+    successMessage: status === "approved" ? "Player limit request approved." : "Player limit request rejected.",
+  }, async (values) => {
     await api(`/api/admin/agents/limits/${request.id}`, {
-      method: "PATCH", body: JSON.stringify({ status, note }),
+      method: "PATCH", body: JSON.stringify({ status, note: values.note || "" }),
     });
     await refresh();
-  } catch (error) {
-    window.alert(error instanceof Error ? error.message : "Could not review player limit request.");
-  }
+  });
 }
 
-async function processTransaction(id: string, status: "approved" | "rejected") {
-  await api(`/api/admin/transactions/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
-  await refresh();
+function processTransaction(transaction: Transaction, status: "approved" | "rejected"): void {
+  openActionDialog({
+    title: status === "approved" ? "Approve payment request" : "Reject payment request",
+    description: `${transaction.type} for ${transaction.username} · Rs. ${money(transaction.amount)}. ${
+      status === "approved"
+        ? "Verify the deposit arrived or send the withdrawal before approving. This only updates the internal wallet."
+        : "This will decline the payment request."
+    }`,
+    confirmLabel: status === "approved" ? "Approve request" : "Reject request",
+    danger: status === "rejected",
+    fields: [],
+    successMessage: status === "approved" ? "Payment request approved." : "Payment request rejected.",
+  }, async () => {
+    await api(`/api/admin/transactions/${transaction.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+    await refresh();
+  });
 }
 
-async function adjustBalance(account: Account) {
-  const input = window.prompt(`Set new wallet balance for ${account.username} (current Rs. ${money(account.balance)}):`, String(account.balance));
-  if (input === null) return;
-  const balance = Number(input);
-  if (!Number.isFinite(balance) || balance < 0) {
-    window.alert("Enter a valid balance greater than or equal to zero.");
+function adjustBalance(account: Account): void {
+  openActionDialog({
+    title: `Adjust ${account.username}'s balance`,
+    description: `Current balance: Rs. ${money(account.balance)}. The change will be recorded in the wallet ledger.`,
+    confirmLabel: "Save balance",
+    fields: [
+      { name: "balance", label: "New wallet balance (Rs.)", type: "number", min: 0, max: 100000000, step: 0.01, initialValue: String(account.balance) },
+      { name: "reason", label: "Adjustment reason", type: "textarea", maxLength: 500, initialValue: "Administrator balance correction" },
+    ],
+    successMessage: "Wallet balance updated.",
+  }, async (values) => {
+    const balance = Number(values.balance);
+    if (!Number.isFinite(balance) || balance < 0 || balance > 100000000) {
+      throw new Error("Enter a valid balance between Rs. 0 and Rs. 100,000,000.");
+    }
+    const reason = values.reason.trim() || "Manual adjustment";
+    await api(`/api/admin/users/${account.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ balance, reason }),
+    });
+    await refresh();
+  });
+}
+
+function rejectKyc(account: Account): void {
+  reviewKyc(account.id, "rejected", "Document details do not match the submitted information");
+}
+
+async function openProof(filename: string): Promise<void> {
+  await openPrivateDocument(`/uploads/${encodeURIComponent(filename)}`, "Could not open payment proof.");
+}
+
+async function openPrivateDocument(url: string, fallback: string): Promise<void> {
+  const documentWindow = window.open("about:blank", "_blank");
+  if (!documentWindow) {
+    reportAdminError(new Error("Allow pop-ups for this site to view the document."), fallback);
     return;
   }
-  const reason = window.prompt("Adjustment reason:", "Administrator balance correction") || "Manual adjustment";
-  await api(`/api/admin/users/${account.id}`, { method: "PATCH", body: JSON.stringify({ balance, reason }) });
-  await refresh();
+  documentWindow.opener = null;
+  try {
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${token.value}` } });
+    handleUnauthorized(response);
+    if (!response.ok) throw new Error(`${fallback} (HTTP ${response.status})`);
+    const documentUrl = URL.createObjectURL(await response.blob());
+    documentWindow.location.replace(documentUrl);
+    window.setTimeout(() => URL.revokeObjectURL(documentUrl), 60000);
+  } catch (caught) {
+    documentWindow.close();
+    reportAdminError(caught, fallback);
+  }
 }
 
-async function rejectKyc(account: Account) {
-  const note = window.prompt(`Reason for rejecting ${account.username}'s KYC:`, "Document details do not match the submitted information");
-  if (note === null) return;
-  await reviewKyc(account.id, "rejected", note);
-}
-
-async function openProof(filename: string) {
-  const response = await fetch(`/uploads/${encodeURIComponent(filename)}`, {
-    headers: { Authorization: `Bearer ${token.value}` },
+function reviewKyc(id: string, status: "verified" | "rejected", initialNote = ""): void {
+  const account = users.value.find((user) => user.id === id);
+  openActionDialog({
+    title: status === "verified" ? "Verify identity documents" : "Reject identity verification",
+    description: status === "verified"
+      ? `Verify the submitted identity documents for ${account?.username || "this account"}?`
+      : `Reject the identity documents for ${account?.username || "this account"}.`,
+    confirmLabel: status === "verified" ? "Verify documents" : "Reject verification",
+    danger: status === "rejected",
+    fields: status === "rejected"
+      ? [{
+        name: "note",
+        label: "Reason for rejection",
+        type: "textarea",
+        maxLength: 1000,
+        required: false,
+        initialValue: initialNote,
+      }]
+      : [],
+    successMessage: status === "verified" ? "Identity verification approved." : "Identity verification rejected.",
+  }, async (values) => {
+    await api(`/api/admin/users/${id}/kyc`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, note: values.note || "" }),
+    });
+    await refresh();
   });
-  if (!response.ok) throw new Error("Could not open payment proof");
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank", "noopener");
-}
-
-async function reviewKyc(id: string, status: "verified" | "rejected", note = "") {
-  await api(`/api/admin/users/${id}/kyc`, { method: "PATCH", body: JSON.stringify({ status, note }) });
-  await refresh();
 }
 
 async function recordGameResult() {
@@ -1530,11 +1845,8 @@ async function recordGameResult() {
   }
 }
 
-async function openDocument(url: string) {
-  const response = await fetch(url, { headers: { Authorization: "Bearer " + token.value } });
-  if (!response.ok) return;
-  const blob = await response.blob();
-  window.open(URL.createObjectURL(blob), "_blank", "noopener,noreferrer");
+async function openDocument(url: string): Promise<void> {
+  await openPrivateDocument(url, "Could not open identity document.");
 }
 
 function money(value: number) {
@@ -1546,31 +1858,54 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 }
 
-async function replyToSupportTicket(ticket: SupportTicket) {
-  const reply = window.prompt(`Reply to ${ticket.username}:`, ticket.reply || "");
-  if (reply === null) return;
-  await api(`/api/admin/support/${ticket.id}`, {
-    method: "PATCH",
-    body: JSON.stringify({ status: ticket.status, reply }),
+function replyToSupportTicket(ticket: SupportTicket): void {
+  openActionDialog({
+    title: `Reply to ${ticket.username}`,
+    description: ticket.subject,
+    confirmLabel: "Send reply",
+    fields: [{
+      name: "reply",
+      label: "Reply",
+      type: "textarea",
+      maxLength: 3000,
+      initialValue: ticket.reply || "",
+    }],
+    successMessage: "Support reply sent.",
+  }, async (values) => {
+    await api(`/api/admin/support/${ticket.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: ticket.status, reply: values.reply }),
+    });
+    await refresh();
   });
-  await refresh();
 }
 
 async function updateSupportTicket(ticket: SupportTicket, status: string) {
-  await api(`/api/admin/support/${ticket.id}`, {
-    method: "PATCH",
-    body: JSON.stringify({ status, reply: ticket.reply }),
-  });
-  await refresh();
+  if (supportUpdating.value[ticket.id]) return;
+  supportUpdating.value[ticket.id] = true;
+  try {
+    await api(`/api/admin/support/${ticket.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, reply: ticket.reply }),
+    });
+    await refresh();
+    adminFeedback.value = { message: "Support ticket status updated.", type: "success" };
+  } catch (caught) {
+    reportAdminError(caught, "Could not update support ticket status.");
+  } finally {
+    supportUpdating.value[ticket.id] = false;
+  }
 }
 
 async function savePlatformSettings() {
+  if (platformSettingsSaving.value) return;
   settingsMessage.value = "";
   const validation = promotionValidationError();
   if (validation) {
     settingsMessage.value = validation;
     return;
   }
+  platformSettingsSaving.value = true;
   try {
     await api("/api/admin/settings", {
       method: "PATCH",
@@ -1579,6 +1914,8 @@ async function savePlatformSettings() {
     settingsMessage.value = "Platform settings saved successfully.";
   } catch (caught) {
     settingsMessage.value = caught instanceof Error ? caught.message : "Could not save settings";
+  } finally {
+    platformSettingsSaving.value = false;
   }
 }
 
@@ -1637,6 +1974,7 @@ function exportTransactions() {
     item.status,
     item.paymentMethod || "",
     item.paymentReference || "",
+    item.createdAt || "",
   ]);
   const csv = [header, ...rows].map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
   const link = document.createElement("a");
@@ -1689,7 +2027,9 @@ body { margin: 0; }
 .panel { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: white; }
 .panel h2 { margin: 0 0 5px; font-size: 17px; }
 .toolbar { display: grid; grid-template-columns: 1fr 180px; gap: 8px; margin-bottom: 4px; }
+.users-toolbar { grid-template-columns: minmax(200px, 1.5fr) repeat(4, minmax(130px, 1fr)); }
 .toolbar input, .toolbar select { height: 42px; padding: 0 10px; border: 1px solid #d5ded6; border-radius: 9px; background: white; }
+.user-result-count { padding: 7px 10px; border: 1px solid #e4ecf1; border-radius: 999px; color: #698093; background: #f7fafc; font-size: 10px; font-weight: 750; white-space: nowrap; }
 .transaction-toolbar { grid-template-columns: 1fr 150px 150px; }
 .overview-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .overview-grid article { display: flex; min-height: 86px; flex-direction: column; justify-content: center; padding: 12px; border-radius: 10px; background: #f4f7f4; }
@@ -1766,7 +2106,9 @@ body { margin: 0; }
 .brand div { display: flex; flex-direction: column; }
 .brand strong { font-size: 15px; }
 .brand span { margin-top: 2px; color: #8a9690; font-size: 11px; }
-.side-nav { display: flex; flex-direction: column; gap: 4px; margin: 18px 0; }
+.side-nav { display: flex; flex-direction: column; gap: 13px; margin: 18px 0; }
+.nav-group { display: flex; flex-direction: column; gap: 3px; }
+.nav-group-title { margin: 0 0 3px; padding: 0 12px; color: #789184; font-size: 9px; font-weight: 800; letter-spacing: 1.1px; text-transform: uppercase; }
 .side-nav button { width: 100%; min-height: 45px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border: 0; border-radius: 10px; color: #66736c; background: transparent; font-size: 13px; font-weight: 650; text-align: left; cursor: pointer; }
 .side-nav button > span { width: 22px; color: #98a49e; font-size: 16px; text-align: center; }
 .side-nav button b { margin-left: auto; min-width: 21px; height: 21px; display: grid; place-items: center; border-radius: 20px; color: #087b4b; background: #e8f6ef; font-size: 10px; }
@@ -1793,6 +2135,9 @@ body { margin: 0; }
 @keyframes admin-refresh-spin { to { transform: rotate(360deg); } }
 .refresh-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 0; padding: 11px 14px; border: 1px solid #f0d4d4; border-radius: 10px; color: #9c3d3d; background: #fff6f6; font-size: 12px; }
 .refresh-error button { flex: 0 0 auto; padding: 6px 10px; border: 1px solid #e8caca; border-radius: 7px; color: #963c3c; background: white; font-size: 11px; font-weight: 700; }
+.admin-feedback { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 0; padding: 11px 14px; border: 1px solid #cfe7d7; border-radius: 10px; color: #176b43; background: #f0faf3; font-size: 12px; }
+.admin-feedback-error { border-color: #f0d4d4; color: #9c3d3d; background: #fff6f6; }
+.admin-feedback button { flex: 0 0 auto; padding: 6px 10px; border: 1px solid currentColor; border-radius: 7px; color: inherit; background: white; font-size: 11px; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .refresh-spinning { animation-duration: 2s; } }
 .overview-page { display: block; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 24px; }
@@ -2052,9 +2397,11 @@ body { margin: 0; }
 .brand span { letter-spacing: .15px; }
 @media (max-width: 980px) {
   .side-nav button .nav-label { display: none; }
+  .nav-group-title { display: none; }
 }
 @media (max-width: 700px) {
   .side-nav { flex: initial; scrollbar-width: none; }
+  .nav-group { display: contents; }
   .side-nav button { width: 68px; min-width: 68px; flex: 0 0 68px; padding: 0 6px; }
   .side-nav button .nav-icon { width: 17px; height: 17px; }
   .side-nav button .nav-label { display: block; color: inherit; font-size: 9px; font-weight: 650; line-height: 1; text-align: center; white-space: nowrap; }
@@ -2086,6 +2433,7 @@ body { margin: 0; }
 .admin-shell .side-nav button.active .nav-label { color: #fff; }
 .side-nav button.active .nav-icon { color: #a7f0bf; }
 .side-nav button b { color: #105637; background: #c9f5d6; }
+.nav-group-title { color: #8eaf9a; }
 .sidebar-user { border-top-color: rgb(255 255 255 / 12%); }
 .sidebar-user strong { color: #eef7f0; }
 .sidebar-user span { color: #9ab6a3; }
@@ -2136,6 +2484,8 @@ body { margin: 0; }
 .overview-action-icon.deposit { color: #147d63; background: linear-gradient(145deg, #e4f8ef, #ccefe0); }
 .overview-action-icon.verification { color: #7053c7; background: linear-gradient(145deg, #f0ebff, #e1d8ff); }
 .overview-action-icon.referral { color: #c14277; background: linear-gradient(145deg, #fff0f6, #ffdeeb); }
+.overview-action-icon.agents { color: #4359a6; background: linear-gradient(145deg, #eef1ff, #dce3ff); }
+.overview-action-icon.support { color: #117d8b; background: linear-gradient(145deg, #e6f8fa, #d1eff2); }
 .overview-action-card > b { color: #354c5d; background: #edf3f7; }
 .overview-secondary-row > span svg { color: #159a66; }
 .side-nav button:focus-visible, .overview-refresh:focus-visible, .overview-action-card:focus-visible, .quick-actions button:focus-visible, .row button:focus-visible, .kyc-row button:focus-visible, .secondary:focus-visible { outline: 3px solid rgb(73 150 215 / 35%); outline-offset: 2px; }
@@ -2254,5 +2604,190 @@ body { margin: 0; }
   .admin-shell .workspace-header { min-height: 72px; padding: 0; }
   .admin-shell .workspace .game-management-panel > .panel-heading { margin: -12px -12px 0; padding: 15px 12px; }
   .admin-shell .workspace .game-management-block { padding: 12px; }
+}
+.admin-shell .workspace {
+  min-width: 0;
+  min-height: 100vh;
+  overflow: visible;
+}
+.admin-shell .sidebar {
+  height: 100vh;
+  height: 100dvh;
+}
+.admin-shell .side-nav {
+  padding: 2px 3px;
+  overscroll-behavior: contain;
+}
+.admin-shell .nav-group {
+  padding-top: 7px;
+}
+.admin-shell .nav-group + .nav-group {
+  border-top: 1px solid rgb(255 255 255 / 7%);
+}
+.admin-shell .nav-group-title {
+  padding: 0 12px;
+  font-size: 9px;
+  line-height: 1.4;
+}
+.admin-shell .side-nav button {
+  min-height: 43px;
+  border-radius: 9px;
+}
+.admin-shell .side-nav button .nav-icon {
+  stroke-width: 1.9;
+}
+.admin-shell .workspace-header {
+  position: sticky;
+  z-index: 15;
+  top: 0;
+  min-height: 88px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 5px 18px rgb(34 54 74 / 3%);
+}
+.admin-shell .workspace-header .header-actions {
+  gap: 9px;
+}
+.admin-shell .workspace-header .live-status {
+  min-height: 30px;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #d5efdf;
+}
+.admin-shell .workspace-header .live-status i {
+  box-shadow: 0 0 0 3px rgb(32 185 111 / 12%);
+}
+.admin-shell .overview-welcome {
+  margin-top: 18px;
+}
+.admin-shell .workspace .overview-action-card {
+  min-height: 82px;
+  padding: 13px;
+}
+.admin-shell .workspace .overview-queue-total {
+  border-color: #e2eaf0;
+  color: #607789;
+  background: #f5f8fb;
+}
+.admin-shell .workspace .overview-queue-total.queue-clear {
+  border-color: #cfe9d9;
+  color: #167447;
+  background: #eff9f2;
+}
+.admin-shell .workspace .users-toolbar {
+  grid-template-columns: minmax(200px, 1.5fr) repeat(4, minmax(125px, 1fr));
+  gap: 9px;
+  margin: 18px 0 12px;
+}
+.admin-shell .workspace .users-toolbar input,
+.admin-shell .workspace .users-toolbar select {
+  min-width: 0;
+  height: 42px;
+  border-color: #dce5ed;
+  border-radius: 10px;
+  color: #30475b;
+  background: #fff;
+}
+.admin-shell .workspace .user-result-count {
+  border-color: #e2eaf0;
+  color: #607789;
+  background: #f7fafc;
+}
+.admin-shell .workspace .row button,
+.admin-shell .workspace .kyc-row button,
+.admin-shell .workspace .documents button,
+.admin-shell .workspace .ticket-row button {
+  min-height: 38px;
+  height: auto;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.admin-shell .workspace .panel-heading {
+  align-items: flex-start;
+  gap: 14px;
+}
+.admin-shell .workspace .panel-heading h2 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.35;
+}
+.admin-shell .workspace .panel-heading p {
+  max-width: 68ch;
+  margin-top: 5px;
+  line-height: 1.55;
+}
+.admin-shell button:focus-visible,
+.admin-shell a:focus-visible,
+.admin-shell input:focus-visible,
+.admin-shell select:focus-visible,
+.admin-shell textarea:focus-visible {
+  outline: 3px solid rgb(73 150 215 / 35%);
+  outline-offset: 2px;
+}
+.admin-login .login-card {
+  max-width: 430px;
+  border-color: #e2ebe5;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 24px 70px rgb(30 67 48 / 10%);
+}
+.admin-login .login-card button:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+.admin-login .login-error {
+  padding: 10px 12px;
+  border: 1px solid #f0d4d4;
+  border-radius: 9px;
+  background: #fff6f6;
+}
+@media (max-width: 1100px) {
+  .admin-shell .workspace .users-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-shell .workspace .users-toolbar input {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 700px) {
+  .admin-shell .sidebar {
+    height: calc(68px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .admin-shell .side-nav {
+    height: 54px;
+    padding: 0;
+  }
+  .admin-shell .side-nav button {
+    min-height: 54px;
+    border-radius: 10px;
+    scroll-snap-align: center;
+  }
+  .admin-shell .workspace-header {
+    min-height: 72px;
+    backdrop-filter: blur(12px);
+  }
+  .admin-shell .workspace .overview-action-card {
+    min-height: 72px;
+    padding: 10px;
+  }
+  .admin-shell .workspace .users-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .admin-shell .workspace .users-toolbar input {
+    grid-column: auto;
+  }
+  .admin-shell .workspace .panel-heading {
+    align-items: flex-start;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-shell *,
+  .admin-login * {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
 }
 </style>

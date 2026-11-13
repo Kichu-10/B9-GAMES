@@ -1152,7 +1152,7 @@ export function createAdminRouter(uploadDir) {
     res.json({ settings: db.platformSettings });
   });
   router.get("/users", (_req, res) => res.json({ users: readDb().users.filter((item) => item.role !== "admin").map(publicUser) }));
-  router.get("/transactions", (_req, res) => res.json({ transactions: readDb().transactions.slice(0, 100) }));
+  router.get("/transactions", (_req, res) => res.json({ transactions: readDb().transactions }));
 
   router.patch("/users/:id", validate(userUpdateSchema), (req, res) => {
     const db = readDb();
@@ -1206,7 +1206,7 @@ export function createAdminRouter(uploadDir) {
     res.json({ user: publicUser(user) });
   });
 
-  router.get("/support", (_req, res) => res.json({ tickets: readDb().supportTickets.slice(0, 100) }));
+  router.get("/support", (_req, res) => res.json({ tickets: readDb().supportTickets }));
   router.patch("/support/:id", validate(z.object({
     status: z.enum(["open", "pending", "resolved"]),
     reply: z.string().trim().max(3000).optional().default(""),
