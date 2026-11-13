@@ -2,7 +2,7 @@
   <main class="agent-app">
     <header class="agent-header">
       <button class="agent-brand" type="button" @click="router.push('/')">
-        <span class="agent-mark"><img :src="b9Mark" alt="B9 logo" /></span>
+        <span class="agent-mark"><img :src="b9Logo" alt="B9 logo" /></span>
         <span><strong>AGENT PORTAL</strong><small>Network management</small></span>
       </button>
       <div class="agent-header-actions">
@@ -165,7 +165,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useSessionStore } from "./stores/session";
-import b9Mark from "./assets/b9-mark.svg";
+import b9Logo from "./assets/b9-logo.webp";
 
 type Application = { status: string; businessName: string; experience: string; createdAt: string; reviewNote: string };
 type Player = { id: string; username: string; balance: number; status: string; lastResult: string; playerLimit: number; createdAt: string };
@@ -442,5 +442,72 @@ onMounted(() => {
   .agent-table { min-width: 730px; }
   .agent-ledger { min-width: 600px; }
   .agent-apply { width: calc(100% - 24px); margin: 28px auto; }
+}
+.agent-app { color: #2b4032; background: #f3f8f4; }
+.agent-header { border-bottom-color: #e2ece4; background: rgb(255 255 255 / 94%); box-shadow: 0 3px 14px rgb(30 74 43 / 4%); }
+.agent-brand { color: #1d3827; }
+.agent-mark { width: 44px; height: 44px; border-color: #cfe5d4; border-radius: 12px; background: #168747; box-shadow: 0 4px 10px rgb(21 130 65 / 15%); }
+.agent-mark img { width: 100%; height: 100%; object-fit: cover; }
+.agent-brand strong { color: #234331; }
+.agent-brand small, .agent-user { color: #79887d; }
+.agent-back { border-color: #dce8df; color: #287044; background: #f5faf6; }
+.agent-back:hover, .agent-limit-button:hover { border-color: #7fc593; background: #eef8f0; }
+.agent-content { color: #2b4032; }
+.agent-welcome h1, .agent-apply h1 { color: #1f3a29; }
+.agent-welcome p, .agent-lead { color: #6f7e73; }
+.agent-eyebrow { color: #178247; }
+.agent-approved { border-color: #cde8d3; color: #187640; background: #edf8ef; }
+.agent-approved i { background: #28a853; box-shadow: 0 0 10px rgb(40 168 83 / 40%); }
+.agent-stat-card, .agent-card { border-color: #e0ebe2; background: linear-gradient(145deg, #fff, #f8fbf8); box-shadow: 0 8px 24px rgb(33 71 43 / 5%); }
+.agent-stat-card > span { color: #66776b; }
+.agent-stat-card > strong { color: #1e6038; }
+.agent-stat-card small { color: #7c8b80; }
+.agent-stat-card .agent-unavailable { color: #7d8a80; }
+.agent-primary { border-color: #148546; color: #fff; background: linear-gradient(135deg, #25a957, #14763e); box-shadow: 0 7px 17px rgb(21 132 66 / 17%); }
+.agent-primary:hover { background: linear-gradient(135deg, #1d9a4c, #106b37); }
+.agent-secondary { border-color: #d7e8da; color: #237342; background: #f5faf6; }
+.agent-secondary:hover { border-color: #87c99a; background: #edf8f0; }
+.agent-card-heading h2, .agent-modal h2 { color: #234331; }
+.agent-lock { color: #75847a; }
+.agent-search { border-color: #dce8df; color: #748479; background: #fff; }
+.agent-search input { color: #263d2e; }
+.agent-search input::placeholder { color: #92a096; }
+.agent-table th { border-bottom-color: #e2ebe4; color: #78877c; }
+.agent-table td { border-bottom-color: #edf2ee; color: #43574a; }
+.agent-table td:first-child strong { color: #254331; }
+.agent-table td:first-child small { color: #829087; }
+.agent-result.won { color: #177540; background: #e8f6eb; }
+.agent-result.lost { color: #b24c4c; background: #fbeeee; }
+.agent-muted, .agent-empty { color: #829087 !important; }
+.agent-status { color: #59695e; background: #edf2ee; }
+.agent-status.active, .agent-status.approved, .agent-status.paid { color: #187540; background: #e8f6eb; }
+.agent-status.suspended, .agent-status.rejected { color: #a84545; background: #fbeeee; }
+.agent-status.pending { color: #916514; background: #fff5dc; }
+.agent-limit-button { border-color: #d7e8da; color: #237342; background: #f5faf6; }
+.agent-date-filters label { color: #748479; }
+.agent-date-filters input { border-color: #dce8df; color: #314a38; background: #fff; color-scheme: light; }
+.agent-footnote, .agent-disclaimer { color: #7b897f; }
+.agent-application-form > label, .agent-modal > label { color: #44594a; }
+.agent-application-form input, .agent-application-form textarea, .agent-modal input, .agent-modal textarea, .agent-modal select { border-color: #d7e4da; color: #273e2e; background: #fff; }
+.agent-application-form input::placeholder, .agent-application-form textarea::placeholder, .agent-modal input::placeholder, .agent-modal textarea::placeholder { color: #94a097; }
+.agent-application-form input:focus, .agent-application-form textarea:focus, .agent-modal input:focus, .agent-modal textarea:focus, .agent-modal select:focus { border-color: #3ba35c; box-shadow: 0 0 0 3px rgb(59 163 92 / 13%); }
+.agent-review-state { border-color: #d8e9dc; background: #f7fbf7; }
+.agent-review-state.rejected { border-color: #f0d7d7; background: #fff7f7; }
+.agent-review-state > div > strong { color: #2a4332; }
+.agent-review-state p { color: #718076; }
+.agent-state h1 { color: #1f3a29; }
+.agent-state p { color: #6f7e73; }
+.agent-state-icon { border-color: #cce5d2; color: #198047; background: #eaf6ed; }
+.agent-state button:not(.agent-primary) { border-color: #d7e4da; color: #287044; background: #fff; }
+.agent-error .agent-state-icon { color: #b44d4d; border-color: #efd1d1; background: #fff1f1; }
+.agent-spinner { border-color: #d5e8d9; border-top-color: #168747; }
+.agent-modal-backdrop { background: rgb(24 43 29 / 43%); }
+.agent-modal { border-color: #e0ebe2; background: #fff; box-shadow: 0 25px 80px rgb(26 56 34 / 20%); }
+.agent-modal-close { border-color: #dce8df; color: #526457; background: #f5faf6; }
+.agent-modal-note { color: #78877c; }
+.agent-form-error { color: #b34242; }
+.agent-toast { border-color: #cbe4d0; color: #1d6738; background: #f0faf2; box-shadow: 0 12px 30px rgb(34 73 43 / 14%); }
+@media (prefers-reduced-motion: reduce) {
+  .agent-spinner { animation-duration: 2s; }
 }
 </style>

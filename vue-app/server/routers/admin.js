@@ -19,12 +19,14 @@ import {
   listManagedGames,
   listManagedProviders,
   readDb,
+  readRewardSettings,
   saveManagedProvider,
   setGameCatalogPageSize,
   toCents,
   updateManagedGame,
   updateManagedGameEnabled,
   writeDb,
+  writeRewardSettings,
 } from "../database.js";
 import { approveTransaction } from "../services/wallet.js";
 import { logger } from "../config/logger.js";
@@ -62,6 +64,42 @@ const referralDecisionSchema = z.object({
   message: "An approved reward requires an amount",
   path: ["amount"],
 });
+const bonusCodeSchema = z.object({
+  code: z.string().trim().min(3).max(32).regex(/^[A-Z0-9_-]+$/i),
+  amount: z.number().finite().min(0.01).max(100000000),
+  terms: z.string().trim().min(1).max(1000),
+  expiresAt: z.string().trim().min(1).max(40),
+  maxRedemptions: z.number().int().min(1).max(1000000).nullable().optional().default(null),
+}).refine((value) => Number.isFinite(Date.parse(value.expiresAt)), {
+  message: "Enter a valid expiry date",
+  path: ["expiresAt"],
+});
+const bonusCodeActiveSchema = z.object({ active: z.boolean() });
+const rewardSettingsSchema = z.object({
+  dailyEnabled: z.boolean(),
+  dailyRewards: z.array(z.number().finite().min(0).max(100000000)).length(7),
+  dailyResetTimezone: z.string().trim().min(1).max(100).refine((value) => {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: value });
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Choose a valid time zone"),
+  streakResetOnMissedDay: z.boolean(),
+  vipEnabled: z.boolean(),
+  vipWindowDays: z.number().int().min(1).max(365),
+  vipTiers: z.object({
+    silver: z.number().finite().min(0).max(100000000),
+    gold: z.number().finite().min(0).max(100000000),
+    platinum: z.number().finite().min(0).max(100000000),
+  }).refine((tiers) => tiers.silver < tiers.gold && tiers.gold < tiers.platinum, {
+    message: "VIP thresholds must increase from Silver to Gold to Platinum",
+  }),
+  cashbackEnabled: z.boolean(),
+  cashbackRate: z.number().finite().min(0).max(100),
+  cashbackWeeklyCap: z.number().finite().min(0).max(100000000),
+});
 const userUpdateSchema = z.object({
   status: z.enum(["active", "suspended"]).optional(),
   balance: z.number().finite().min(0).max(100000000).optional(),
@@ -75,6 +113,15 @@ const settingsSchema = z.object({
   supportEmail: z.string().trim().email().or(z.literal("")).default(""),
   supportPhone: z.string().trim().max(40).default(""),
   supportHours: z.string().trim().max(100).default(""),
+  bankName: z.string().trim().max(120).default(""),
+  accountName: z.string().trim().max(120).default(""),
+  accountNumber: z.string().trim().max(80).default(""),
+  iban: z.string().trim().max(80).default(""),
+  upiId: z.string().trim().max(120).default(""),
+  walletName: z.string().trim().max(80).default(""),
+  walletNumber: z.string().trim().max(80).default(""),
+  paymentInstructions: z.string().trim().max(1000).default(""),
+  jackpotAmount: z.number().finite().min(0).max(1000000000000).default(10799004.2),
   promotions: z.array(z.object({
     id: z.string().trim().min(1).max(80),
     title: z.string().trim().min(1).max(100),
@@ -355,6 +402,73 @@ export function createAdminRouter(uploadDir) {
     }
     recordAgentAudit(req.user.id, `REFERRAL_REWARD_${req.body.status.toUpperCase()}`, auditTarget, auditDetails);
     return res.json({ status: req.body.status, amount: amountCents / 100 });
+  });
+
+  router.get("/rewards/settings", (_req, res) => {
+    return res.json({ settings: readRewardSettings() });
+  });
+
+  router.patch("/rewards/settings", validate(rewardSettingsSchema), (req, res) => {
+    const settings = writeRewardSettings(req.body);
+    recordAgentAudit(req.user.id, "REWARD_SETTINGS_UPDATED", "Reward settings",
+      `Daily ${settings.dailyEnabled ? "enabled" : "disabled"}; VIP window ${settings.vipWindowDays} days; cashback ${settings.cashbackEnabled ? "configured active" : "disabled"}`);
+    return res.json({ settings });
+  });
+
+  router.get("/bonus-codes", (_req, res) => {
+    const codes = db.prepare(`
+      SELECT c.id, c.code, c.amount_cents AS amountCents, c.terms,
+        c.expires_at AS expiresAt, c.max_redemptions AS maxRedemptions,
+        c.active, c.created_at AS createdAt,
+        COUNT(r.id) AS redemptionCount
+      FROM bonus_codes c
+      LEFT JOIN bonus_code_redemptions r ON r.code_id = c.id
+      GROUP BY c.id
+      ORDER BY c.created_at DESC
+    `).all().map((code) => ({
+      id: code.id,
+      code: code.code,
+      amount: code.amountCents / 100,
+      terms: code.terms,
+      expiresAt: code.expiresAt,
+      maxRedemptions: code.maxRedemptions,
+      active: Boolean(code.active),
+      createdAt: code.createdAt,
+      redemptionCount: code.redemptionCount,
+    }));
+    return res.json({ codes });
+  });
+
+  router.post("/bonus-codes", validate(bonusCodeSchema), (req, res) => {
+    const code = req.body.code.toUpperCase();
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const expiresAt = new Date(req.body.expiresAt).toISOString();
+    if (expiresAt && expiresAt <= now) return res.status(400).json({ error: "Expiry date must be in the future" });
+    try {
+      db.prepare(`
+        INSERT INTO bonus_codes
+          (id, code, amount_cents, terms, expires_at, max_redemptions, active, created_by, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+      `).run(id, code, toCents(req.body.amount), req.body.terms, expiresAt,
+        req.body.maxRedemptions, req.user.id, now);
+    } catch (error) {
+      if (error?.code === "SQLITE_CONSTRAINT_UNIQUE") {
+        return res.status(409).json({ error: "A bonus code with this value already exists" });
+      }
+      throw error;
+    }
+    recordAgentAudit(req.user.id, "BONUS_CODE_CREATED", code,
+      `Amount ${req.body.amount}; max redemptions ${req.body.maxRedemptions ?? "unlimited"}; expires ${expiresAt || "never"}`);
+    return res.status(201).json({ id, code, amount: req.body.amount, expiresAt, active: true });
+  });
+
+  router.patch("/bonus-codes/:id", validate(bonusCodeActiveSchema), (req, res) => {
+    const code = db.prepare("SELECT code FROM bonus_codes WHERE id = ?").get(req.params.id);
+    if (!code) return res.status(404).json({ error: "Bonus code not found" });
+    db.prepare("UPDATE bonus_codes SET active = ? WHERE id = ?").run(req.body.active ? 1 : 0, req.params.id);
+    recordAgentAudit(req.user.id, req.body.active ? "BONUS_CODE_ACTIVATED" : "BONUS_CODE_DEACTIVATED", code.code);
+    return res.json({ id: req.params.id, active: req.body.active });
   });
 
   router.patch("/agents/applications/:id", validate(agentDecisionSchema), (req, res) => {
@@ -995,7 +1109,25 @@ export function createAdminRouter(uploadDir) {
     });
   });
   router.get("/activity", (_req, res) => res.json({ logs: readDb().auditLogs.slice(0, 100) }));
-  router.get("/settings", (_req, res) => res.json({ settings: readDb().platformSettings || {} }));
+  router.get("/settings", (_req, res) => {
+    const settings = readDb().platformSettings || {};
+    res.json({
+      settings: {
+        ...settings,
+        bankName: settings.bankName || process.env.MANUAL_PAYMENT_BANK_NAME || "Admin will provide bank details",
+        accountName: settings.accountName || process.env.MANUAL_PAYMENT_ACCOUNT_NAME || "",
+        accountNumber: settings.accountNumber || process.env.MANUAL_PAYMENT_ACCOUNT_NUMBER || "",
+        iban: settings.iban || process.env.MANUAL_PAYMENT_IBAN || "",
+        upiId: settings.upiId || process.env.MANUAL_PAYMENT_UPI_ID || "",
+        walletName: settings.walletName || process.env.MANUAL_PAYMENT_WALLET_NAME || "",
+        walletNumber: settings.walletNumber || process.env.MANUAL_PAYMENT_WALLET_NUMBER || "",
+        paymentInstructions: settings.paymentInstructions
+          || process.env.MANUAL_PAYMENT_INSTRUCTIONS
+          || "Transfer the exact amount, then submit the request with your payment reference and proof.",
+        jackpotAmount: settings.jackpotAmount ?? 10799004.2,
+      },
+    });
+  });
   router.patch("/settings", validate(settingsSchema), (req, res) => {
     const db = readDb();
     const previousBannerImages = (db.platformSettings?.promotions || [])
@@ -1003,7 +1135,7 @@ export function createAdminRouter(uploadDir) {
       .filter(Boolean);
     db.platformSettings = req.body;
     const admin = db.users.find((item) => item.id === req.user.id);
-    addAudit(db, admin?.username || "admin", "SETTINGS_UPDATED", "Platform settings", "Announcement, support, and promotion settings updated");
+    addAudit(db, admin?.username || "admin", "SETTINGS_UPDATED", "Platform settings", "Platform content, support, payment, and display settings updated");
     writeDb(db);
     const retainedBannerImages = new Set(db.platformSettings.promotions.map((promotion) => promotion.bannerImage).filter(Boolean));
     for (const filename of previousBannerImages) {

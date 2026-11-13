@@ -1,5 +1,5 @@
 <template>
-  <div class="page-frame" :class="[`page-${currentPage}`, { 'game-active': currentPage === 'games' && Boolean(activeGame) }]">
+  <div class="page-frame" :class="[`page-${currentPage}`, { 'game-active': currentPage === 'games' && Boolean(activeGame), 'deposit-active': (currentPage === 'wallet' || (currentPage === 'account' && profileSection === 'wallet')) && signedIn && walletRequestType === 'deposit' }]">
     <PublicHeader
       :logo="b9Logo"
       :balance-label="signedIn ? `${currencyLabel} ${formatMoney(balance)}` : '--'"
@@ -426,10 +426,8 @@
       </section>
 
       <section v-else-if="currentPage === 'promotions'" class="page-section">
-        <div class="page-heading">
-          <span class="eyebrow">MEMBER REWARDS</span>
+        <div class="page-heading page-heading-simple">
           <h1>Promotions</h1>
-          <p>Offers and eligibility details provided by the platform.</p>
         </div>
         <div v-if="!signedIn" class="signed-out-card">
           <Gift :size="30" />
@@ -473,12 +471,11 @@
       </section>
 
       <section v-else-if="currentPage === 'wallet' || (currentPage === 'account' && profileSection === 'wallet')" class="page-section wallet-page">
-        <div class="page-heading">
-          <span class="eyebrow">YOUR ACCOUNT</span>
+        <div v-if="walletRequestType === 'withdrawal' || !signedIn" class="page-heading">
           <h1>Wallet</h1>
           <p>Track your balance, fund your game wallet, and manage deposit and withdrawal requests.</p>
         </div>
-        <nav class="profile-tabs" aria-label="Account sections" role="tablist">
+        <nav v-if="walletRequestType === 'withdrawal' || !signedIn" class="profile-tabs" aria-label="Account sections" role="tablist">
           <button type="button" role="tab" :aria-selected="profileSection === 'profile'" @click="selectAccountSection('profile')"><UserRound :size="16" />Profile</button>
           <button type="button" role="tab" :aria-selected="profileSection === 'wallet'" class="active" @click="selectAccountSection('wallet')"><Wallet :size="16" />Wallet</button>
         </nav>
@@ -489,7 +486,7 @@
           <button class="primary-button" @click="showAuth">Sign in</button>
         </div>
         <template v-else>
-          <section class="wallet-balance-card" aria-label="Wallet balances">
+          <section v-if="walletRequestType === 'withdrawal'" class="wallet-balance-card" aria-label="Wallet balances">
             <div class="wallet-balance-main">
               <span class="wallet-balance-label">Main wallet</span>
               <strong class="wallet-balance-value">{{ currencyLabel }} {{ formatAmount(balance) }}</strong>
@@ -508,20 +505,20 @@
             </div>
           </section>
 
-          <section class="wallet-workspace">
+          <section class="wallet-workspace" :class="{ 'wallet-deposit-workspace': walletRequestType === 'deposit' }">
             <header class="wallet-workspace-heading">
-              <div><span class="eyebrow">PAYMENTS</span><h2>Request a transaction</h2></div>
-              <div class="wallet-tabs" role="tablist" aria-label="Transaction type">
-                <button type="button" role="tab" :aria-selected="walletRequestType === 'deposit'" :class="{ active: walletRequestType === 'deposit' }" @click="walletRequestType = 'deposit'">
-                  <ArrowDownLeft :size="15" /> Deposit
-                </button>
-                <button type="button" role="tab" :aria-selected="walletRequestType === 'withdrawal'" :class="{ active: walletRequestType === 'withdrawal' }" @click="walletRequestType = 'withdrawal'">
-                  <ArrowUpRight :size="15" /> Withdraw
-                </button>
+              <div class="wallet-payment-title">
+                <button type="button" class="wallet-back-button" aria-label="Back to account" @click="navigateTo('/account')"><ChevronLeft :size="19" /></button>
+                <h2>{{ walletRequestType === "deposit" ? "Deposit" : "Withdraw" }}</h2>
               </div>
+              <button type="button" class="wallet-switch-button" @click="walletRequestType = walletRequestType === 'deposit' ? 'withdrawal' : 'deposit'; depositDetailsExpanded = false">
+                <ArrowUpRight v-if="walletRequestType === 'deposit'" :size="15" />
+                <ArrowDownLeft v-else :size="15" />
+                {{ walletRequestType === "deposit" ? "Withdraw" : "Deposit" }}
+              </button>
             </header>
-            <p v-if="walletKycVerified" class="wallet-hint">Requests are reviewed by an administrator before your balance changes.</p>
-            <div v-else class="wallet-kyc-gate" role="status">
+            <p v-if="walletKycVerified && walletRequestType === 'withdrawal'" class="wallet-hint">Requests are reviewed by an administrator before your balance changes.</p>
+            <div v-if="!walletKycVerified" class="wallet-kyc-gate" role="status">
               <ShieldCheck :size="22" />
               <div>
                 <strong>Identity verification required</strong>
@@ -537,62 +534,92 @@
             </div>
 
             <template v-if="walletKycVerified">
-            <div v-if="walletRequestType === 'deposit'" class="wallet-payment-card">
-              <div class="wallet-payment-heading">
-                <Landmark :size="18" />
-                <div><strong>{{ paymentDetails.bankName }}</strong><small>Send the exact amount, then submit the reference below.</small></div>
+            <section v-if="walletRequestType === 'deposit'" class="wallet-deposit-methods" aria-label="Payment method">
+              <span class="wallet-field-label">Payment method</span>
+              <div v-if="depositPaymentMethods.length" class="wallet-deposit-method-options">
+                <button
+                  v-for="method in depositPaymentMethods"
+                  :key="method"
+                  type="button"
+                  :aria-pressed="selectedDepositMethod === method"
+                  :class="{ chosen: selectedDepositMethod === method }"
+                  @click="selectDepositPaymentMethod(method)"
+                >
+                  <img class="wallet-provider-logo" :src="method === 'PhonePe' ? phonePeLogo : paytmLogo" :alt="`${method} logo`" />
+                  <span>{{ method }}</span>
+                </button>
               </div>
-              <dl v-if="paymentDetailRows().length" class="wallet-payment-rows">
-                <div v-for="row in paymentDetailRows()" :key="row.label" class="wallet-payment-row">
-                  <dt>{{ row.label }}</dt>
-                  <dd>
-                    <span>{{ row.value }}</span>
-                    <button type="button" class="wallet-copy-button" :aria-label="`Copy ${row.label}`" @click="copyField(row.label, row.value)">
-                      <Check v-if="copiedField === row.label" :size="14" />
-                      <Copy v-else :size="14" />
-                    </button>
-                  </dd>
-                </div>
-              </dl>
-              <p v-else class="wallet-payment-empty">Bank, UPI, and wallet details are not configured yet.</p>
-              <p v-if="paymentDetails.instructions" class="wallet-payment-instructions">{{ paymentDetails.instructions }}</p>
-            </div>
+            </section>
 
-            <form class="wallet-form" novalidate @submit.prevent="submitWalletRequest">
-              <div class="wallet-field">
-                <span class="wallet-field-label">Amount ({{ currencyLabel }})</span>
+            <section v-if="walletRequestType === 'deposit'" class="wallet-deposit-channel" aria-label="Payment channel">
+              <span class="wallet-field-label">Payment channel</span>
+              <button type="button" class="wallet-deposit-channel-chip" :aria-expanded="showDepositPaymentDetails" @click="showDepositPaymentDetails = !showDepositPaymentDetails">
+                <Check :size="15" />{{ selectedDepositMethod }} QR<ChevronRight :size="15" />
+              </button>
+            </section>
+
+            <section v-if="walletRequestType === 'deposit' && showDepositPaymentDetails" class="wallet-deposit-details">
+              <span class="wallet-field-label">Transfer to these details</span>
+              <div class="wallet-payment-card deposit-payment-card">
+                <div class="wallet-payment-heading">
+                  <span class="wallet-payment-icon"><Landmark :size="19" /></span>
+                  <div>
+                    <strong>{{ paymentDetails.bankName }}</strong>
+                    <small>Send your payment to the details below.</small>
+                  </div>
+                </div>
+                <dl v-if="paymentDetailRows().length" class="wallet-payment-rows">
+                  <div v-for="row in paymentDetailRows()" :key="row.label" class="wallet-payment-row">
+                    <dt>{{ row.label }}</dt>
+                    <dd>
+                      <span>{{ row.value }}</span>
+                      <button type="button" class="wallet-copy-button" :aria-label="`Copy ${row.label}`" @click="copyField(row.label, row.value)">
+                        <Check v-if="copiedField === row.label" :size="14" />
+                        <Copy v-else :size="14" />
+                      </button>
+                    </dd>
+                  </div>
+                </dl>
+                <p v-else class="wallet-payment-empty">Bank, UPI, and wallet details are not configured yet.</p>
+                <p v-if="paymentDetails.instructions" class="wallet-payment-instructions">{{ paymentDetails.instructions }}</p>
+              </div>
+            </section>
+
+            <form class="wallet-form" :class="{ 'wallet-deposit-form': walletRequestType === 'deposit' }" novalidate @submit.prevent="submitWalletRequest">
+              <div class="wallet-field" :class="{ 'wallet-deposit-amount': walletRequestType === 'deposit' }">
+                <span class="wallet-field-label">{{ walletRequestType === 'deposit' ? `Deposit amount (${currencyLabel})` : `Amount (${currencyLabel})` }}</span>
                 <div class="amount-options">
-                  <button v-for="preset in [500, 1000, 5000, 10000]" :key="preset" type="button" :class="{ chosen: amount === String(preset) }" @click="amount = String(preset)">
+                  <button v-for="preset in (walletRequestType === 'deposit' ? [100, 300, 500, 1000, 2000, 5000, 10000, 20000, 30000, 50000] : [500, 1000, 5000, 10000])" :key="preset" type="button" :aria-pressed="amount === String(preset)" :class="{ chosen: amount === String(preset) }" @click="amount = String(preset)">
                     {{ preset.toLocaleString() }}
                   </button>
                 </div>
                 <label class="wallet-input-shell">
                   <span class="wallet-input-prefix">{{ currencyLabel }}</span>
-                  <input v-model="amount" inputmode="numeric" placeholder="0" :aria-label="`Request amount in ${currencyLabel}`" @input="amount = amount.replace(/\D/g, '')" />
+                  <input v-model="amount" type="number" min="100" :max="walletRequestType === 'deposit' ? 50000 : 100000000" inputmode="numeric" :placeholder="walletRequestType === 'deposit' ? '100 - 50,000' : 'Enter an amount'" :aria-label="`${walletRequestType === 'deposit' ? 'Deposit' : 'Request'} amount in ${currencyLabel}`" @input="amount = amount.replace(/\D/g, '')" />
                 </label>
               </div>
 
-              <div class="wallet-field">
-                <span class="wallet-field-label">{{ walletRequestType === 'deposit' ? 'Payment method' : 'Withdrawal destination' }}</span>
+              <div v-if="walletRequestType === 'withdrawal'" class="wallet-field">
+                <span class="wallet-field-label">Withdrawal destination</span>
                 <label class="wallet-input-shell">
                   <Smartphone :size="16" />
-                  <input v-model="paymentMethod" :placeholder="walletRequestType === 'deposit' ? 'Payment method (bank, UPI, wallet)' : 'Withdrawal destination (bank, UPI, wallet)'" :aria-label="walletRequestType === 'deposit' ? 'Payment method' : 'Withdrawal destination'" />
+                  <input v-model="paymentMethod" placeholder="Withdrawal destination (bank, UPI, wallet)" aria-label="Withdrawal destination" />
                 </label>
               </div>
 
-              <div v-if="walletRequestType === 'deposit'" class="wallet-field">
+              <div v-if="walletRequestType === 'deposit' && depositDetailsExpanded" class="wallet-field">
                 <span class="wallet-field-label">Transaction reference</span>
                 <label class="wallet-input-shell">
-                  <input v-model="paymentReference" placeholder="Transaction or payment reference" aria-label="Transaction reference" required />
+                  <input ref="depositReferenceInput" v-model="paymentReference" placeholder="Transaction or payment reference" aria-label="Transaction reference" required />
                 </label>
               </div>
 
-              <div class="wallet-field">
+              <div v-if="walletRequestType === 'withdrawal' || depositDetailsExpanded" class="wallet-field">
                 <span class="wallet-field-label">{{ walletRequestType === 'deposit' ? 'Note (optional)' : 'Destination details' }}</span>
                 <textarea v-model="paymentNote" class="manual-note" rows="3" :placeholder="walletRequestType === 'withdrawal' ? 'Account number, IFSC, UPI ID, or wallet details' : 'Anything the reviewer should know'" :aria-label="walletRequestType === 'withdrawal' ? 'Destination details' : 'Note'" />
               </div>
 
-              <div v-if="walletRequestType === 'deposit'" class="wallet-field">
+              <div v-if="walletRequestType === 'deposit' && depositDetailsExpanded" class="wallet-field">
                 <span class="wallet-field-label">Payment proof</span>
                 <label class="wallet-file-drop">
                   <CircleCheck v-if="paymentProofName" :size="18" />
@@ -602,14 +629,31 @@
                 </label>
               </div>
 
-              <button class="primary-button full-button" type="submit" :disabled="walletSubmitting">
-                {{ walletSubmitting ? "Submitting…" : `Submit ${walletRequestType === "deposit" ? "Deposit" : "Withdrawal"} Request` }}
+              <template v-if="walletRequestType === 'deposit'">
+                <button v-if="!depositDetailsExpanded" type="button" class="wallet-deposit-help" @click="askAboutDeposit">
+                  <span>Deposit sent but not showing?</span><strong>Report it <ChevronRight :size="15" /></strong>
+                </button>
+                <div v-if="depositDetailsExpanded" class="wallet-deposit-help">
+                  <span>Deposit sent but not showing?</span><button type="button" @click="askAboutDeposit">Report it <ChevronRight :size="15" /></button>
+                </div>
+                <div class="wallet-deposit-footer">
+                  <button v-if="!depositDetailsExpanded" class="wallet-deposit-submit" type="button" :disabled="walletSubmitting" @click="continueDeposit">
+                    Deposit
+                  </button>
+                  <button v-else class="wallet-deposit-submit" type="submit" :disabled="walletSubmitting">
+                    {{ walletSubmitting ? "Submitting…" : "Submit Deposit Request" }}
+                  </button>
+                </div>
+              </template>
+
+              <button v-if="walletRequestType === 'withdrawal'" class="primary-button full-button" type="submit" :disabled="walletSubmitting">
+                {{ walletSubmitting ? "Submitting…" : "Submit Withdrawal Request" }}
               </button>
             </form>
             </template>
           </section>
 
-          <section class="wallet-workspace transaction-panel">
+          <section v-if="walletRequestType === 'withdrawal'" class="wallet-workspace transaction-panel">
             <header class="wallet-workspace-heading">
               <div><span class="eyebrow">ACTIVITY</span><h2>Recent transactions</h2></div>
               <button class="wallet-refresh" type="button" :disabled="transactionLoading" @click="loadWalletTransactions">Refresh</button>
@@ -644,10 +688,8 @@
       </section>
 
       <section v-else-if="(currentPage === 'account' && profileSection !== 'wallet') || currentPage === 'rewards'" class="page-section account-page">
-        <div class="page-heading">
-          <span class="eyebrow">{{ currentPage === "rewards" ? "MEMBER BENEFITS" : "YOUR ACCOUNT" }}</span>
+        <div class="page-heading page-heading-simple">
           <h1>{{ currentPage === "rewards" ? "Rewards" : "Account" }}</h1>
-          <p>{{ currentPage === "rewards" ? "Check in daily, explore member offers, and track your referral rewards." : "Manage your profile, wallet, verification, and account settings." }}</p>
         </div>
         <nav v-if="currentPage === 'account'" class="profile-tabs" aria-label="Account sections" role="tablist">
           <button type="button" role="tab" :aria-selected="profileSection === 'profile'" :class="{ active: profileSection === 'profile' }" @click="selectAccountSection('profile')"><UserRound :size="16" />Profile</button>
@@ -655,8 +697,6 @@
         </nav>
         <nav v-if="currentPage === 'rewards'" class="rewards-tabs" aria-label="Reward categories" role="tablist">
           <button type="button" role="tab" :aria-selected="rewardsTab === 'daily'" :class="{ active: rewardsTab === 'daily' }" @click="rewardsTab = 'daily'"><CalendarDays :size="16" />Daily</button>
-          <button type="button" role="tab" :aria-selected="rewardsTab === 'bonuses'" :class="{ active: rewardsTab === 'bonuses' }" @click="rewardsTab = 'bonuses'"><Gift :size="16" />Bonuses</button>
-          <button type="button" role="tab" :aria-selected="rewardsTab === 'cashback'" :class="{ active: rewardsTab === 'cashback' }" @click="rewardsTab = 'cashback'"><CircleAlert :size="16" />Cashback</button>
           <button type="button" role="tab" :aria-selected="rewardsTab === 'vip'" :class="{ active: rewardsTab === 'vip' }" @click="rewardsTab = 'vip'"><BadgeCheck :size="16" />VIP</button>
           <button type="button" role="tab" :aria-selected="rewardsTab === 'code'" :class="{ active: rewardsTab === 'code' }" @click="rewardsTab = 'code'"><ShieldCheck :size="16" />Bonus code</button>
           <button type="button" role="tab" :aria-selected="rewardsTab === 'referrals'" :class="{ active: rewardsTab === 'referrals' }" @click="rewardsTab = 'referrals'"><Users :size="16" />Referrals</button>
@@ -668,7 +708,6 @@
             <template v-else-if="rewardsDashboard">
               <section v-if="rewardsTab === 'daily'" class="daily-rewards-section">
                 <div class="daily-rewards-banner">
-                  <span class="eyebrow">MEMBER BENEFITS</span>
                   <h2>Daily rewards</h2>
                   <p>Check in each day to keep your 7-day streak going.</p>
                 </div>
@@ -699,28 +738,6 @@
                   <p class="daily-reset-note">{{ rewardsDashboard.daily.streakResetOnMissedDay ? "A missed day resets your streak to Day 1." : "A missed day pauses your streak." }} Claims reset at midnight {{ rewardsDashboard.daily.resetTimezone }}.</p>
                   <p v-if="dailyClaimError" class="referral-feedback error" role="alert">{{ dailyClaimError }}</p>
                 </article>
-              </section>
-
-              <section v-else-if="rewardsTab === 'bonuses'" class="rewards-content-card">
-                <div class="rewards-content-heading"><Gift :size="22" /><div><h2>Member bonuses</h2><p>Current offers and their terms.</p></div></div>
-                <p v-if="promotionsLoading" class="referral-feedback" role="status">Loading member offers…</p>
-                <p v-else-if="promotionsError" class="referral-feedback error" role="alert">{{ promotionsError }}</p>
-                <div v-else-if="activePromotions.length" class="rewards-offer-list">
-                  <article v-for="promotion in activePromotions" :key="promotion.id" class="rewards-offer-card">
-                    <strong>{{ promotion.title }}</strong>
-                    <p v-if="promotion.description">{{ promotion.description }}</p>
-                    <span v-if="promotion.reward">{{ promotion.reward }}</span>
-                    <small v-if="promotion.terms">{{ promotion.terms }}</small>
-                    <button type="button" class="avatar-upload-button" @click="navigateTo('/promotions')">View promotion</button>
-                  </article>
-                </div>
-                <p v-else class="referral-feedback">There are no active bonus offers right now.</p>
-              </section>
-
-              <section v-else-if="rewardsTab === 'cashback'" class="rewards-content-card cashback-unavailable-card">
-                <div class="rewards-content-heading"><CircleAlert :size="22" /><div><h2>Cashback</h2><p>Configured at {{ rewardsDashboard.cashback.rate }}%, up to {{ currencyLabel }} {{ formatAmount(rewardsDashboard.cashback.weeklyCap) }} per week.</p></div></div>
-                <p class="cashback-unavailable-note">{{ rewardsDashboard.cashback.message }}</p>
-                <p class="referral-review-note">Cashback will only be calculated from verified, settled game results. Voided and refunded rounds will not count.</p>
               </section>
 
               <section v-else-if="rewardsTab === 'vip'" class="rewards-content-card vip-rewards-card">
@@ -796,7 +813,14 @@
           </template>
           <template v-else-if="profileSection === 'profile'">
           <div class="account-hero-row">
-            <section class="account-hero">
+            <button
+              type="button"
+              class="account-hero"
+              :aria-label="`Open profile options for ${user?.username || 'your account'}`"
+              aria-haspopup="dialog"
+              :aria-expanded="modal === 'profile-actions'"
+              @click="openProfileActions"
+            >
               <div class="account-avatar">
                 <img v-if="displayedAvatarUrl" :src="displayedAvatarUrl" alt="Profile picture" @error="handleAvatarError" />
                 <span v-else>{{ user?.username?.slice(0, 1).toUpperCase() || "U" }}</span>
@@ -806,30 +830,13 @@
                 <strong>{{ user?.username }}</strong>
                 <small>{{ user?.email || "No email linked" }}</small>
                 <div class="account-badges">
-                  <span class="account-badge" :class="user?.kycStatus === 'verified' ? 'ok' : 'warn'">
-                    <BadgeCheck v-if="user?.kycStatus === 'verified'" :size="12" />
-                    <ShieldCheck v-else :size="12" />
-                    {{ kycBadgeLabel(user?.kycStatus) }}
-                  </span>
                   <span class="account-badge neutral">
                     <CalendarDays :size="12" />
                     Joined {{ formatMemberSince(user?.createdAt) }}
                   </span>
                 </div>
               </div>
-            </section>
-
-            <section class="account-profile-card account-picture-card">
-              <div class="account-profile-head">
-                <UserRound :size="18" />
-                <div><strong>Profile picture</strong><small>JPEG, PNG, or WebP · up to 3 MB</small></div>
-              </div>
-              <label class="avatar-upload-button" :class="{ uploading: avatarUploading }">
-                <UserRound :size="18" />
-                {{ avatarUploading ? "Uploading picture…" : displayedAvatarUrl ? "Change picture" : "Upload picture" }}
-                <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="avatarUploading" @change="uploadProfilePicture" />
-              </label>
-            </section>
+            </button>
           </div>
 
           <section class="account-balance-card" aria-label="Available balance">
@@ -858,16 +865,9 @@
             </div>
           </section>
 
-          <section class="account-group">
-            <h2 class="account-group-title">Join the Agent Program</h2>
-            <div class="account-action-grid">
-              <button @click="navigateTo('/agent')"><Users :size="21" /><span><strong>Become a B9 Agent</strong><small>Open the separate agent portal and apply to manage player accounts</small></span><ChevronRight :size="18" /></button>
-            </div>
-          </section>
-
           </template>
 
-          <button class="sign-out-button" @click="toggleSignIn"><LogOut :size="19" />Sign out</button>
+          <button v-if="currentPage === 'account'" class="sign-out-button" @click="toggleSignIn"><LogOut :size="19" />Sign out</button>
         </template>
         <div v-else class="signed-out-card">
           <component :is="currentPage === 'rewards' ? Gift : UserRound" :size="30" />
@@ -1010,6 +1010,20 @@
           </article>
         </div>
 
+        <div v-else-if="modal === 'profile-actions'" class="modal-content profile-actions">
+          <p>Choose what you’d like to do with your profile.</p>
+          <button type="button" class="support-row" @click="openProfile">
+            <UserRound :size="20" />
+            <span><strong>View profile</strong><small>Review your account details and verification status</small></span>
+            <ChevronRight :size="18" />
+          </button>
+          <label class="support-row profile-change-option" :class="{ uploading: avatarUploading }">
+            <UserRound :size="20" />
+            <span><strong>{{ avatarUploading ? "Uploading picture…" : "Change profile picture" }}</strong><small>JPEG, PNG, or WebP · up to 3 MB</small></span>
+            <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="avatarUploading" @change="uploadProfilePicture" />
+          </label>
+        </div>
+
         <div v-else-if="modal === 'profile'" class="modal-content profile-info">
           <div class="profile-picture-editor">
             <div class="profile-avatar-preview">
@@ -1133,8 +1147,10 @@ import fishingCategoryLogo from "./assets/category-icons/04_fishing.png";
 import inOutCategoryLogo from "./assets/category-icons/05_inout.png";
 import pgSoftLogo from "./assets/provider-logos/pgsoft.png";
 import inOutLogo from "./assets/provider-logos/inout.svg";
+import phonePeLogo from "./assets/provider-logos/phonepe.png";
+import paytmLogo from "./assets/provider-logos/paytm.png";
 
-type Modal = "menu" | "promo" | "profile" | "inbox" | "auth" | "kyc" | "transactions" | "favorites" | "support" | "game-funding" | null;
+type Modal = "menu" | "promo" | "profile" | "profile-actions" | "inbox" | "auth" | "kyc" | "transactions" | "favorites" | "support" | "game-funding" | null;
 type AuthUser = { id: string; username: string; phone: string; email: string; country: string; kycStatus: string; role: "user" | "agent" | "admin"; balance: number; status: string; createdAt: string; lastLoginAt: string | null; googlePictureUrl?: string; referralCode?: string };
 type WalletTransaction = { id: string; type: "deposit" | "withdrawal"; amount: number; status: string; createdAt: string; paymentMethod?: string; paymentReference?: string; paymentNote?: string };
 type ProfileShortcutAction = "wallet" | "promotions" | "transactions" | "profile" | "security" | "notifications" | "favorites" | "support";
@@ -1152,7 +1168,7 @@ type RewardsDashboard = {
   };
   cashback: { enabled: boolean; configuredEnabled: boolean; rate: number; weeklyCap: number; message: string };
 };
-type RewardsTab = "daily" | "bonuses" | "cashback" | "vip" | "code" | "referrals";
+type RewardsTab = "daily" | "vip" | "code" | "referrals";
 type PaymentDetails = { bankName: string; accountName: string; accountNumber: string; iban: string; upiId: string; walletName: string; walletNumber: string; instructions: string };
 type InboxMessage = { id: string; type: string; title: string; message: string; read: boolean; createdAt: string };
 type Promotion = { id: string; title: string; description: string; reward: string; terms: string; active: boolean; bannerImage?: string; bannerUrl?: string; bannerIncludesText?: boolean };
@@ -1304,6 +1320,9 @@ const kycAddress = ref("");
 const kycLoading = ref(false);
 const kycFiles = ref<Record<string, File | undefined>>({});
 const walletRequestType = ref<"deposit" | "withdrawal">("deposit");
+const depositDetailsExpanded = ref(false);
+const showDepositPaymentDetails = ref(false);
+const depositReferenceInput = ref<HTMLInputElement | null>(null);
 const walletTransactions = ref<WalletTransaction[]>([]);
 const transactionLoading = ref(false);
 const transactionFilter = ref<"all" | "deposit" | "withdrawal">("all");
@@ -1334,6 +1353,14 @@ const walletSubmitting = ref(false);
 const paymentDetails = ref<PaymentDetails>({
   bankName: "", accountName: "", accountNumber: "", iban: "", upiId: "", walletName: "", walletNumber: "", instructions: "",
 });
+const depositPaymentMethods = ["PhonePe", "Paytm"] as const;
+const selectedDepositMethod = ref<(typeof depositPaymentMethods)[number]>("PhonePe");
+watch(selectedDepositMethod, (method) => {
+  paymentMethod.value = method;
+}, { immediate: true });
+function selectDepositPaymentMethod(method: (typeof depositPaymentMethods)[number]): void {
+  selectedDepositMethod.value = method;
+}
 let paymentDetailsRequest: Promise<void> | undefined;
 const gameWalletBalance = ref(0);
 const gameWalletCurrency = ref("");
@@ -1473,6 +1500,7 @@ const modalTitle = computed(() => {
     : transactionFilter.value === "withdrawal" ? "Withdrawal Records" : "Transaction History";
   if (modal.value === "favorites") return "My Favorites";
   if (modal.value === "support") return "Help & Support";
+  if (modal.value === "profile-actions") return "Profile";
   if (modal.value === "profile") return "Profile & Account";
   if (modal.value === "menu") return "Menu";
   if (modal.value === "inbox") return "Inbox";
@@ -1708,6 +1736,7 @@ async function uploadProfilePicture(event: Event): Promise<void> {
   try {
     await api("/api/auth/profile/avatar", { method: "POST", body: form });
     await loadProfilePicture();
+    if (modal.value === "profile-actions") modal.value = null;
     notify("Profile picture updated");
   } catch (error) {
     notify(error instanceof Error ? error.message : "Could not update profile picture");
@@ -2350,6 +2379,10 @@ async function submitWalletRequest(): Promise<void> {
     notify(`Minimum ${walletRequestType.value === "deposit" ? "deposit" : "withdrawal"} is ${currencyLabel.value} 100`);
     return;
   }
+  if (walletRequestType.value === "deposit" && value > 50000) {
+    notify(`Maximum deposit is ${currencyLabel.value} 50,000`);
+    return;
+  }
   if (!paymentMethod.value.trim()) {
     notify(walletRequestType.value === "withdrawal" ? "Enter your withdrawal destination" : "Enter the payment method");
     return;
@@ -2391,6 +2424,29 @@ async function submitWalletRequest(): Promise<void> {
   } finally {
     walletSubmitting.value = false;
   }
+}
+async function continueDeposit(): Promise<void> {
+  if (!walletKycVerified.value) {
+    notify("Complete KYC verification and wait for approval before requesting a deposit");
+    return;
+  }
+  const value = Number(amount.value);
+  if (!value || value < 100 || value > 50000) {
+    notify(`Enter a deposit amount between ${currencyLabel.value} 100 and 50,000`);
+    return;
+  }
+  if (!paymentMethod.value.trim()) {
+    notify("Choose or enter the payment method used");
+    return;
+  }
+  depositDetailsExpanded.value = true;
+  await nextTick();
+  depositReferenceInput.value?.focus();
+}
+function askAboutDeposit(): void {
+  supportSubject.value = "Deposit not showing in wallet";
+  supportMessage.value = "I submitted a deposit, but it is not showing in my wallet. Please help me check its status.";
+  modal.value = "support";
 }
 function askAboutPromotion(promotion: Promotion): void {
   if (requireSignIn()) return;
@@ -2583,6 +2639,9 @@ function signOut(): void {
 function openProfile(): void {
   if (!requireSignIn()) modal.value = "profile";
 }
+function openProfileActions(): void {
+  if (!requireSignIn()) modal.value = "profile-actions";
+}
 async function openTransactionHistory(filter: "all" | "deposit" | "withdrawal" = "all"): Promise<void> {
   if (requireSignIn()) return;
   transactionFilter.value = filter;
@@ -2614,7 +2673,7 @@ function handleProfileShortcut(action: ProfileShortcutAction): void {
       void openTransactionHistory();
       break;
     case "profile":
-      openProfile();
+      openProfileActions();
       break;
     case "security":
       openKyc();
@@ -3225,8 +3284,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .support-content { gap: 8px; }
 .support-content > p { margin: 0; color: #667469; font-size: 13px; }
 .support-row { display: flex; width: 100%; align-items: center; gap: 10px; padding: 11px; border: 0; border-radius: 10px; text-align: left; background: #edf5ef; color: #355342; }
-.support-row span { display: flex; flex-direction: column; }
+.support-row span { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .support-row small { color: #829087; }
+.profile-actions > p { margin: 0; color: #748078; font-size: 13px; }
+.profile-actions .support-row { min-height: 64px; border: 1px solid #e1ebe2; cursor: pointer; }
+.profile-change-option { position: relative; }
+.profile-change-option.uploading { opacity: .65; cursor: wait; }
+.profile-change-option input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
 .ticket-form { display: grid; gap: 7px; margin-top: 4px; }
 .ticket-form input, .ticket-form textarea {
   width: 100%; border: 1px solid #dce7df; border-radius: 10px; background: white; color: #355342; outline: none;
@@ -3552,6 +3616,47 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .wallet-copy-button:hover { background: #e8f5eb; }
 .wallet-payment-empty { margin: 0; color: #7b887f; font-size: 12px; }
 .wallet-payment-instructions { margin: 0; padding-top: 2px; color: #5d6b61; font-size: 12px; line-height: 1.5; }
+.wallet-deposit-workspace { gap: 16px; padding: 0 0 20px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.wallet-deposit-workspace .wallet-workspace-heading { min-height: 60px; margin: 0 -16px; padding: 9px 16px; border-bottom: 1px solid #e6eee7; background: #fff; }
+.wallet-payment-title { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.wallet-payment-title h2 { margin: 0; color: #233d2d; font-size: 19px; font-weight: 750; }
+.wallet-back-button { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border: 1px solid #e0e9e1; border-radius: 50%; color: #4a6251; background: #f7faf7; }
+.wallet-back-button:hover { border-color: #bfdbc5; color: #168548; background: #eef7f0; }
+.wallet-switch-button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 5px; padding: 7px 11px; border: 1px solid #dfe9e1; border-radius: 10px; color: #437151; background: #f7faf7; font-size: 12px; font-weight: 700; }
+.wallet-switch-button:hover { border-color: #b8d9c0; color: #168548; background: #eef7f0; }
+.wallet-deposit-methods { display: grid; gap: 8px; }
+.wallet-deposit-method-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.wallet-deposit-method-options button { display: flex; min-width: 0; min-height: 54px; align-items: center; justify-content: center; gap: 8px; padding: 9px 10px; border: 1px solid #dfe9e1; border-radius: 12px; color: #5b6d60; background: #fbfdfb; font-size: 12px; font-weight: 700; transition: border-color .16s ease, background .16s ease, color .16s ease; }
+.wallet-deposit-method-options button > svg { flex: 0 0 auto; color: #27854a; }
+.wallet-deposit-method-options button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wallet-deposit-method-options button:hover { border-color: #afd3b7; color: #176f3b; background: #f4faf5; }
+.wallet-deposit-method-options button.chosen { border-color: #72bb85; color: #176f3b; background: #eaf6ed; box-shadow: inset 0 0 0 1px rgb(22 133 72 / 8%); }
+.wallet-deposit-method-empty { margin: 0; color: #7b887f; font-size: 11px; }
+.wallet-deposit-channel, .wallet-deposit-details { display: grid; gap: 8px; }
+.wallet-provider-logo { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; object-fit: contain; }
+.wallet-deposit-channel-chip { display: inline-flex; width: min(50%, 300px); min-height: 48px; align-items: center; gap: 7px; padding: 7px 14px; border: 1px solid #cfe5d3; border-radius: 12px; color: #176f3b; background: #edf7ef; font-size: 12px; font-weight: 700; }
+.wallet-deposit-channel-chip svg:last-child { margin-left: auto; transition: transform .16s ease; }
+.wallet-deposit-channel-chip[aria-expanded="true"] svg:last-child { transform: rotate(90deg); }
+.deposit-payment-card { gap: 10px; padding: 13px; border-color: #e2ebe3; background: #fbfdfb; }
+.deposit-payment-card .wallet-payment-heading { align-items: center; gap: 9px; }
+.wallet-payment-icon { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 10px; color: #168548; background: #e8f5eb; }
+.wallet-deposit-form { gap: 12px; }
+.wallet-deposit-form .manual-note { border-color: #d5ded6; color: #22392c; background: white; }
+.wallet-deposit-amount .amount-options { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+.wallet-deposit-amount .amount-options button { min-width: 0; min-height: 38px; padding: 7px 2px; border-color: #dfebe1; border-radius: 10px; color: #4a6251; background: #fbfdfb; font-size: 11px; font-weight: 650; transition: border-color .16s ease, background .16s ease, color .16s ease; }
+.wallet-deposit-amount .amount-options button:hover { border-color: #acd2b5; background: #f3faf4; }
+.wallet-deposit-amount .amount-options button.chosen { border-color: #72bb85; color: #176f3b; background: #eaf6ed; box-shadow: inset 0 0 0 1px rgb(22 133 72 / 8%); }
+.wallet-method-selected { width: 100%; padding: 12px 0; color: #22392c; font-size: 14px; }
+.wallet-deposit-help { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 11px 13px; border: 1px solid #e4eee6; border-radius: 12px; color: #758279; background: #fbfdfb; font-size: 12px; text-align: left; }
+.wallet-deposit-help strong { display: inline-flex; align-items: center; gap: 3px; color: #188147; font-size: 12px; }
+.wallet-deposit-help button { display: inline-flex; align-items: center; gap: 4px; padding: 0; color: #188147; background: transparent; font-size: 12px; font-weight: 750; }
+.wallet-deposit-help:hover { border-color: #c7dfcc; background: #f6fbf7; }
+.wallet-deposit-footer { position: fixed; z-index: 12; bottom: 0; left: 50%; width: min(100%, 720px); margin: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, #fff 78%, rgb(255 255 255 / 0%)); transform: translateX(-50%); }
+.wallet-deposit-submit { width: 100%; min-height: 54px; padding: 12px 18px; border: 0; border-radius: 999px; color: #fff; background: linear-gradient(110deg, #168548, #22a653); box-shadow: 0 5px 15px rgb(22 133 72 / 22%); font-size: 15px; font-weight: 800; }
+.wallet-deposit-submit:hover:not(:disabled) { background: linear-gradient(110deg, #13783f, #1d984a); box-shadow: 0 7px 19px rgb(22 133 72 / 28%); }
+.wallet-deposit-submit:disabled { cursor: not-allowed; opacity: .6; }
+.deposit-active .bottom-nav { display: none; }
+.deposit-active .wallet-page { padding-bottom: 94px; }
 
 .wallet-field { display: flex; flex-direction: column; gap: 6px; }
 .wallet-field-label { color: #5d6b61; font-size: 12px; font-weight: 700; }
@@ -3589,8 +3694,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .transaction-status.pending { color: #8a6a17; background: #f8efcc; }
 
 /* ---------- Account (professional layout) ---------- */
-.account-hero-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(210px, .42fr); align-items: stretch; gap: 12px; }
-.account-hero { display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px solid #dfeae0; border-radius: 20px; background: white; }
+.account-hero-row { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 12px; }
+.account-hero { display: flex; width: 100%; align-items: center; gap: 14px; padding: 18px; border: 1px solid #dfeae0; border-radius: 20px; color: inherit; background: white; font: inherit; text-align: left; cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease; }
+.account-hero:hover { border-color: #bfdcc6; box-shadow: 0 5px 16px rgb(31 72 43 / 5%); }
 .account-hero .account-avatar { width: 68px; height: 68px; font-size: 27px; }
 .account-hero-identity { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
 .account-hero-label { color: #8a968e; font-size: 11px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
@@ -3611,8 +3717,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .account-profile-head { display: flex; align-items: center; gap: 10px; color: #2c8b52; }
 .account-profile-head strong { display: block; color: #22392c; font-size: 13.5px; }
 .account-profile-head small { color: #8a968e; font-size: 11px; }
-.account-picture-card { flex-direction: column; align-items: flex-start; justify-content: center; }
-.rewards-tabs { display: flex; overflow-x: auto; gap: 7px; padding: 5px; border: 1px solid #e1ebe2; border-radius: 15px; background: white; scrollbar-width: thin; }
+.account-picture-card { flex-direction: row; align-items: center; justify-content: space-between; }
+.rewards-tabs { display: flex; flex-wrap: wrap; overflow: visible; gap: 7px; padding: 5px; border: 1px solid #e1ebe2; border-radius: 15px; background: white; }
 .rewards-tabs button { display: inline-flex; min-height: 40px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; padding: 0 13px; border: 0; border-radius: 10px; color: #6b7b70; background: transparent; font-size: 12px; font-weight: 750; white-space: nowrap; }
 .rewards-tabs button.active { color: white; background: #168548; box-shadow: 0 2px 6px rgb(22 133 72 / 15%); }
 .daily-rewards-section { display: grid; gap: 13px; }
@@ -3724,9 +3830,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .wallet-kyc-gate { align-items: flex-start; flex-wrap: wrap; }
   .wallet-kyc-gate > div { flex-basis: calc(100% - 38px); }
   .wallet-kyc-button, .wallet-kyc-pending { margin-left: 34px; }
+  .wallet-deposit-amount .amount-options { gap: 5px; }
+  .wallet-deposit-amount .amount-options button { padding-right: 1px; padding-left: 1px; font-size: 10px; }
 }
 @media (max-width: 640px) {
-  .account-hero-row { grid-template-columns: minmax(0, 1fr); }
   .account-picture-card { flex-direction: row; align-items: center; justify-content: space-between; }
 }
 @media (max-width: 420px) {
@@ -3909,6 +4016,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   font-size: 14px;
   line-height: 1.6;
 }
+.page-heading-simple {
+  padding-top: 10px;
+  padding-bottom: 0;
+}
+.page-heading-simple h1 {
+  margin: 0;
+}
 .page-section > .empty-state {
   margin: 0;
   padding: 28px 18px;
@@ -3940,6 +4054,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .rewards-tabs button.active {
   background: linear-gradient(110deg, #168548, #229b53);
   box-shadow: 0 3px 9px rgb(22 133 72 / 18%);
+}
+@media (max-width: 480px) {
+  .rewards-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .rewards-tabs button {
+    width: 100%;
+    min-width: 0;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
 }
 .account-hero,
 .account-profile-card,

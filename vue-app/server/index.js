@@ -19,6 +19,7 @@ import { createGamesRouter } from "./routers/games.js";
 import { createPromotionsRouter } from "./routers/promotions.js";
 import { createAgentsRouter } from "./routers/agents.js";
 import { createReferralsRouter } from "./routers/referrals.js";
+import { createRewardsRouter } from "./routers/rewards.js";
 import { createProfileRouter } from "./routers/profile.js";
 import { createInboxRouter } from "./routers/inbox.js";
 import { backupSqlite } from "./database.js";
@@ -61,6 +62,7 @@ app.use(helmet({
 }));
 app.use("/api/auth", rateLimit({ windowMs: 15 * 60 * 1000, limit: 100, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/admin/auth", rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false }));
+app.use("/api/rewards/bonus-codes", rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
 app.use("/api/admin", (_req, res, next) => {
   res.setHeader("Cache-Control", "no-store, private");
   res.setHeader("Pragma", "no-cache");
@@ -68,15 +70,18 @@ app.use("/api/admin", (_req, res, next) => {
 });
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 app.get("/api/payment/details", (_req, res) => {
+  const settings = readPlatformSettings();
   res.json({
-    bankName: process.env.MANUAL_PAYMENT_BANK_NAME || "Admin will provide bank details",
-    accountName: process.env.MANUAL_PAYMENT_ACCOUNT_NAME || "",
-    accountNumber: process.env.MANUAL_PAYMENT_ACCOUNT_NUMBER || "",
-    iban: process.env.MANUAL_PAYMENT_IBAN || "",
-    upiId: process.env.MANUAL_PAYMENT_UPI_ID || "",
-    walletName: process.env.MANUAL_PAYMENT_WALLET_NAME || "",
-    walletNumber: process.env.MANUAL_PAYMENT_WALLET_NUMBER || "",
-    instructions: process.env.MANUAL_PAYMENT_INSTRUCTIONS || "Transfer the exact amount, then submit the request with your payment reference and proof.",
+    bankName: settings.bankName || process.env.MANUAL_PAYMENT_BANK_NAME || "Admin will provide bank details",
+    accountName: settings.accountName || process.env.MANUAL_PAYMENT_ACCOUNT_NAME || "",
+    accountNumber: settings.accountNumber || process.env.MANUAL_PAYMENT_ACCOUNT_NUMBER || "",
+    iban: settings.iban || process.env.MANUAL_PAYMENT_IBAN || "",
+    upiId: settings.upiId || process.env.MANUAL_PAYMENT_UPI_ID || "",
+    walletName: settings.walletName || process.env.MANUAL_PAYMENT_WALLET_NAME || "",
+    walletNumber: settings.walletNumber || process.env.MANUAL_PAYMENT_WALLET_NUMBER || "",
+    instructions: settings.paymentInstructions
+      || process.env.MANUAL_PAYMENT_INSTRUCTIONS
+      || "Transfer the exact amount, then submit the request with your payment reference and proof.",
   });
 });
 
@@ -88,6 +93,7 @@ app.get("/api/platform/settings", (_req, res) => {
     supportEmail: settings.supportEmail || "",
     supportPhone: settings.supportPhone || "",
     supportHours: settings.supportHours || "24/7",
+    jackpotAmount: settings.jackpotAmount ?? 10799004.2,
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
   });
 });
@@ -104,6 +110,7 @@ app.use("/api/games", createGamesRouter(uploadDir));
 app.use("/api/promotions", createPromotionsRouter(uploadDir));
 app.use("/api/agents", createAgentsRouter());
 app.use("/api/referrals", createReferralsRouter());
+app.use("/api/rewards", createRewardsRouter());
 
 function auth(req, res, next) {
   const header = req.headers.authorization || "";

@@ -499,16 +499,82 @@
         <button class="primary-button" type="submit">Save promotions</button>
       </form>
       <small class="form-message" role="status">{{ settingsMessage }}</small>
+      <section class="promotion-admin-section rewards-admin-section">
+        <div class="promotion-admin-heading">
+          <div><h3>Rewards controls</h3><p>Set daily claim amounts, streak policy, VIP eligibility, and cashback policy.</p></div>
+        </div>
+        <form class="settings-form" @submit.prevent="saveRewardSettings">
+          <label class="switch-row"><span><strong>Daily check-in enabled</strong><small>Allow users to claim the configured daily streak rewards</small></span><input v-model="rewardSettings.dailyEnabled" type="checkbox" /></label>
+          <div class="reward-daily-amounts">
+            <label v-for="(_, index) in rewardSettings.dailyRewards" :key="index">Day {{ index + 1 }} amount<input v-model.number="rewardSettings.dailyRewards[index]" type="number" min="0" max="100000000" step="0.01" required /></label>
+          </div>
+          <label>Daily reset time zone<input v-model.trim="rewardSettings.dailyResetTimezone" list="reward-timezones" required placeholder="UTC" /><datalist id="reward-timezones"><option value="UTC"></option><option value="Asia/Kathmandu"></option><option value="Asia/Kolkata"></option><option value="Asia/Karachi"></option></datalist></label>
+          <label class="switch-row"><span><strong>Reset streak after a missed day</strong><small>When disabled, a missed day pauses rather than resets the streak</small></span><input v-model="rewardSettings.streakResetOnMissedDay" type="checkbox" /></label>
+          <label class="switch-row"><span><strong>VIP levels enabled</strong><small>Display deposit-based VIP tier status and progress to members</small></span><input v-model="rewardSettings.vipEnabled" type="checkbox" /></label>
+          <label>VIP deposit window (days)<input v-model.number="rewardSettings.vipWindowDays" type="number" min="1" max="365" step="1" required /></label>
+          <label>Silver threshold<input v-model.number="rewardSettings.vipTiers.silver" type="number" min="0" max="100000000" step="0.01" required /></label>
+          <label>Gold threshold<input v-model.number="rewardSettings.vipTiers.gold" type="number" min="0" max="100000000" step="0.01" required /></label>
+          <label>Platinum threshold<input v-model.number="rewardSettings.vipTiers.platinum" type="number" min="0" max="100000000" step="0.01" required /></label>
+          <label class="switch-row"><span><strong>Cashback configured active</strong><small>Admin control only; payouts remain paused until verified game settlement data is connected</small></span><input v-model="rewardSettings.cashbackEnabled" type="checkbox" /></label>
+          <label>Cashback rate (%)<input v-model.number="rewardSettings.cashbackRate" type="number" min="0" max="100" step="0.01" required /></label>
+          <label>Cashback weekly cap<input v-model.number="rewardSettings.cashbackWeeklyCap" type="number" min="0" max="100000000" step="0.01" required /></label>
+          <button class="primary-button" type="submit" :disabled="rewardSettingsSaving">{{ rewardSettingsSaving ? "Saving rewards…" : "Save reward controls" }}</button>
+        </form>
+        <small class="form-message" role="status">{{ rewardSettingsMessage }}</small>
+      </section>
+      <section class="promotion-admin-section bonus-code-admin-section">
+        <div class="promotion-admin-heading">
+          <div><h3>Redeemable bonus codes</h3><p>Create fixed-value codes that members can redeem once into their Main Wallet.</p></div>
+        </div>
+        <form class="settings-form" @submit.prevent="createBonusCode">
+          <label>Code<input v-model.trim="bonusCodeForm.code" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_-]+" placeholder="B9WELCOME" /></label>
+          <label>Wallet credit<input v-model.number="bonusCodeForm.amount" type="number" min="0.01" max="100000000" step="0.01" required /></label>
+          <label>Expiry<input v-model="bonusCodeForm.expiresAt" type="datetime-local" required /></label>
+          <label>Maximum redemptions (optional)<input v-model.number="bonusCodeForm.maxRedemptions" type="number" min="1" max="1000000" placeholder="Unlimited" /></label>
+          <label>Terms<textarea v-model.trim="bonusCodeForm.terms" maxlength="1000" rows="2" required placeholder="Eligibility and any restrictions"></textarea></label>
+          <button class="primary-button" type="submit" :disabled="bonusCodeSaving">{{ bonusCodeSaving ? "Creating code…" : "Create bonus code" }}</button>
+        </form>
+        <small class="form-message" role="status">{{ bonusCodeMessage }}</small>
+        <article v-for="code in bonusCodes" :key="code.id" class="row bonus-code-row">
+          <div><strong>{{ code.code }}</strong><span>Rs. {{ money(code.amount) }} · {{ code.redemptionCount }}{{ code.maxRedemptions ? ` / ${code.maxRedemptions}` : "" }} redemptions</span><small v-if="code.terms">{{ code.terms }}</small><small v-if="code.expiresAt">Expires {{ formatDate(code.expiresAt) }}</small></div>
+          <span :class="code.active ? 'approved' : 'rejected'">{{ code.active ? "Active" : "Disabled" }}</span>
+          <button type="button" class="secondary" :disabled="bonusCodeActionId === code.id" @click="toggleBonusCode(code)">{{ bonusCodeActionId === code.id ? "Saving…" : code.active ? "Disable" : "Activate" }}</button>
+        </article>
+        <p v-if="bonusCodes.length === 0" class="empty">No redeemable bonus codes have been created.</p>
+      </section>
     </section>
 
     <section v-if="tab === 'settings'" class="panel settings-panel">
-      <div class="panel-heading"><div><h2>Platform Settings</h2><p>Public announcement, support, and member offers</p></div></div>
+      <div class="panel-heading"><div><h2>Platform Settings</h2><p>Control customer-facing notices, support, payment instructions, and homepage display.</p></div></div>
       <form class="settings-form" @submit.prevent="savePlatformSettings">
         <label>Public announcement<textarea v-model="platformSettings.announcement" rows="3" placeholder="Announcement shown on the homepage"></textarea></label>
         <label>Support email<input v-model="platformSettings.supportEmail" type="email" placeholder="support@example.com" /></label>
         <label>Support phone<input v-model="platformSettings.supportPhone" placeholder="+91..." /></label>
         <label>Support hours<input v-model="platformSettings.supportHours" placeholder="24/7" /></label>
         <label class="switch-row"><span><strong>Maintenance mode</strong><small>Display maintenance notice without disabling the API</small></span><input v-model="platformSettings.maintenanceMode" type="checkbox" /></label>
+        <section class="settings-control-group">
+          <div class="promotion-admin-heading">
+            <div><h3>Manual payment instructions</h3><p>These details appear in the member wallet. Confirm every destination before saving. Blank fields use the matching server environment value.</p></div>
+          </div>
+          <div class="settings-control-grid">
+            <label>Bank name<input v-model.trim="platformSettings.bankName" maxlength="120" placeholder="Bank name" /></label>
+            <label>Account holder name<input v-model.trim="platformSettings.accountName" maxlength="120" placeholder="Account name" /></label>
+            <label>Account number<input v-model.trim="platformSettings.accountNumber" maxlength="80" autocomplete="off" placeholder="Account number" /></label>
+            <label>IBAN<input v-model.trim="platformSettings.iban" maxlength="80" autocomplete="off" placeholder="IBAN" /></label>
+            <label>UPI ID<input v-model.trim="platformSettings.upiId" maxlength="120" placeholder="name@bank" /></label>
+            <label>Mobile wallet name<input v-model.trim="platformSettings.walletName" maxlength="80" placeholder="Wallet provider" /></label>
+            <label>Mobile wallet number<input v-model.trim="platformSettings.walletNumber" maxlength="80" autocomplete="off" placeholder="Wallet number" /></label>
+            <label class="settings-control-wide">Payment instructions<textarea v-model.trim="platformSettings.paymentInstructions" maxlength="1000" rows="3" placeholder="Explain how members should submit a payment request"></textarea></label>
+          </div>
+        </section>
+        <section class="settings-control-group">
+          <div class="promotion-admin-heading">
+            <div><h3>Homepage display</h3><p>The jackpot value is a manually configured display amount and is not connected to a live pool or settlement system.</p></div>
+          </div>
+          <div class="settings-control-grid">
+            <label>Jackpot display amount (Rs.)<input v-model.number="platformSettings.jackpotAmount" type="number" min="0" max="1000000000000" step="0.01" required /></label>
+          </div>
+        </section>
         <button class="primary-button" type="submit">Save platform settings</button>
       </form>
       <small class="form-message" role="status">{{ settingsMessage }}</small>
@@ -550,6 +616,12 @@ type Transaction = { id: string; username: string; type: string; amount: number;
 type AuditLog = { id: string; action: string; target: string; details: string; createdAt: string };
 type SupportTicket = { id: string; username: string; subject: string; message: string; status: string; reply: string; createdAt: string; updatedAt: string };
 type Promotion = { id: string; title: string; description: string; reward: string; terms: string; active: boolean; bannerImage: string; bannerIncludesText: boolean };
+type BonusCode = { id: string; code: string; amount: number; terms: string; expiresAt: string | null; maxRedemptions: number | null; active: boolean; createdAt: string; redemptionCount: number };
+type RewardSettings = {
+  dailyEnabled: boolean; dailyRewards: number[]; dailyResetTimezone: string; streakResetOnMissedDay: boolean;
+  vipEnabled: boolean; vipWindowDays: number; vipTiers: { silver: number; gold: number; platinum: number };
+  cashbackEnabled: boolean; cashbackRate: number; cashbackWeeklyCap: number;
+};
 type ManagedProvider = { code: string; name: string; enabled: boolean; gameCount: number; logo: string };
 type ManagedGame = {
   id: string; providerCode: string; provider: string; providerEnabled: boolean; externalId: string; name: string;
@@ -637,7 +709,42 @@ const filteredManagedGames = computed(() => managedGames.value.filter((game) => 
 const allFilteredManagedGamesSelected = computed(() => filteredManagedGames.value.length > 0
   && filteredManagedGames.value.every((game) => selectedManagedGameIds.value.includes(game.id)));
 const openTicketCount = computed(() => supportTickets.value.filter((ticket) => ticket.status !== "resolved").length);
-const platformSettings = ref({ announcement: "", maintenanceMode: false, supportEmail: "", supportPhone: "", supportHours: "24/7", promotions: [] as Promotion[] });
+const platformSettings = ref({
+  announcement: "",
+  maintenanceMode: false,
+  supportEmail: "",
+  supportPhone: "",
+  supportHours: "24/7",
+  bankName: "",
+  accountName: "",
+  accountNumber: "",
+  iban: "",
+  upiId: "",
+  walletName: "",
+  walletNumber: "",
+  paymentInstructions: "",
+  jackpotAmount: 10799004.2,
+  promotions: [] as Promotion[],
+});
+const bonusCodes = ref<BonusCode[]>([]);
+const bonusCodeForm = ref({ code: "", amount: 1, terms: "", expiresAt: "", maxRedemptions: "" });
+const bonusCodeMessage = ref("");
+const bonusCodeSaving = ref(false);
+const bonusCodeActionId = ref("");
+const rewardSettings = ref<RewardSettings>({
+  dailyEnabled: true,
+  dailyRewards: [5, 10, 15, 20, 25, 30, 50],
+  dailyResetTimezone: "UTC",
+  streakResetOnMissedDay: true,
+  vipEnabled: true,
+  vipWindowDays: 30,
+  vipTiers: { silver: 1000, gold: 5000, platinum: 25000 },
+  cashbackEnabled: false,
+  cashbackRate: 5,
+  cashbackWeeklyCap: 50,
+});
+const rewardSettingsMessage = ref("");
+const rewardSettingsSaving = ref(false);
 const settingsMessage = ref("");
 const bannerUploading = ref<Record<string, boolean>>({});
 const bannerPreviewUrls = ref<Record<string, string>>({});
@@ -685,6 +792,10 @@ function selectTab(value: string) {
     tab.value = value as (typeof allowedTabs)[number];
     if (tab.value === "games") void loadGameManagement();
     if (tab.value === "referrals") void loadReferralData();
+    if (tab.value === "promotions") {
+      void loadBonusCodes();
+      void loadRewardSettings();
+    }
   }
 }
 
@@ -1121,6 +1232,7 @@ async function refresh() {
     referralReviews.value = referralsData.referrals;
     platformSettings.value = { ...platformSettings.value, ...settingsData.settings };
     if (tab.value === "games") await loadGameManagement();
+    if (tab.value === "promotions") await Promise.all([loadBonusCodes(), loadRewardSettings()]);
     lastRefreshTime.value = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   } catch (caught) {
     if (caught instanceof Error && "status" in caught && caught.status === 401) {
@@ -1147,6 +1259,95 @@ async function loadReferralData() {
     referralReviews.value = data.referrals;
   } catch (error) {
     window.alert(error instanceof Error ? error.message : "Could not load referral rewards.");
+  }
+}
+
+async function loadBonusCodes() {
+  try {
+    const data = await api("/api/admin/bonus-codes");
+    bonusCodes.value = data.codes;
+  } catch (error) {
+    bonusCodeMessage.value = error instanceof Error ? error.message : "Could not load bonus codes.";
+  }
+}
+
+async function loadRewardSettings() {
+  try {
+    const data = await api("/api/admin/rewards/settings");
+    rewardSettings.value = {
+      ...data.settings,
+      dailyRewards: [...data.settings.dailyRewards],
+      vipTiers: { ...data.settings.vipTiers },
+    };
+  } catch (error) {
+    rewardSettingsMessage.value = error instanceof Error ? error.message : "Could not load reward controls.";
+  }
+}
+
+async function saveRewardSettings() {
+  rewardSettingsSaving.value = true;
+  rewardSettingsMessage.value = "";
+  try {
+    const data = await api("/api/admin/rewards/settings", {
+      method: "PATCH",
+      body: JSON.stringify(rewardSettings.value),
+    });
+    rewardSettings.value = {
+      ...data.settings,
+      dailyRewards: [...data.settings.dailyRewards],
+      vipTiers: { ...data.settings.vipTiers },
+    };
+    rewardSettingsMessage.value = "Reward controls saved.";
+  } catch (error) {
+    rewardSettingsMessage.value = error instanceof Error ? error.message : "Could not save reward controls.";
+  } finally {
+    rewardSettingsSaving.value = false;
+  }
+}
+
+async function createBonusCode() {
+  bonusCodeSaving.value = true;
+  bonusCodeMessage.value = "";
+  try {
+    const expiresAt = bonusCodeForm.value.expiresAt
+      ? new Date(bonusCodeForm.value.expiresAt).toISOString()
+      : "";
+    await api("/api/admin/bonus-codes", {
+      method: "POST",
+      body: JSON.stringify({
+        code: bonusCodeForm.value.code,
+        amount: bonusCodeForm.value.amount,
+        terms: bonusCodeForm.value.terms,
+        expiresAt,
+        maxRedemptions: bonusCodeForm.value.maxRedemptions
+          ? Number(bonusCodeForm.value.maxRedemptions)
+          : null,
+      }),
+    });
+    bonusCodeForm.value = { code: "", amount: 1, terms: "", expiresAt: "", maxRedemptions: "" };
+    bonusCodeMessage.value = "Bonus code created.";
+    await loadBonusCodes();
+  } catch (error) {
+    bonusCodeMessage.value = error instanceof Error ? error.message : "Could not create bonus code.";
+  } finally {
+    bonusCodeSaving.value = false;
+  }
+}
+
+async function toggleBonusCode(code: BonusCode) {
+  bonusCodeActionId.value = code.id;
+  bonusCodeMessage.value = "";
+  try {
+    await api(`/api/admin/bonus-codes/${encodeURIComponent(code.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ active: !code.active }),
+    });
+    await loadBonusCodes();
+    bonusCodeMessage.value = `Bonus code ${code.active ? "disabled" : "activated"}.`;
+  } catch (error) {
+    bonusCodeMessage.value = error instanceof Error ? error.message : "Could not update bonus code.";
+  } finally {
+    bonusCodeActionId.value = "";
   }
 }
 
@@ -1635,7 +1836,14 @@ body { margin: 0; }
 .settings-form input, .settings-form textarea { width: 100%; border: 1px solid #e1e8e4; border-radius: 9px; background: white; padding: 10px; font-family: inherit; }
 .settings-form input { height: 42px; }
 .settings-form textarea { resize: vertical; }
+.settings-control-group { display: grid; grid-column: 1 / -1; gap: 12px; padding: 16px; border: 1px solid #e5ece7; border-radius: 14px; background: #fbfdfb; }
+.settings-control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.settings-control-grid .settings-control-wide { grid-column: 1 / -1; }
+.settings-control-group .promotion-admin-heading p { max-width: 720px; }
 .promotion-admin-section { display: grid; grid-column: 1 / -1; gap: 10px; padding-top: 14px; border-top: 1px solid #e8eeea; }
+.rewards-admin-section .reward-daily-amounts { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.rewards-admin-section .reward-daily-amounts label { min-width: 0; }
+.rewards-admin-section .reward-daily-amounts input { min-width: 0; }
 .promotion-admin-heading, .promotion-admin-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .promotion-admin-heading h3 { margin: 0; color: #344a3c; font-size: 15px; }
 .promotion-admin-heading p { max-width: 520px; margin: 4px 0 0; color: #87948b; font-size: 11px; line-height: 1.5; }
@@ -1774,7 +1982,11 @@ body { margin: 0; }
   .ticket-row select, .ticket-row button { width: 100%; }
   .settings-form { grid-template-columns: 1fr; }
   .settings-form label, .settings-form label:first-child, .settings-form .switch-row, .settings-form .primary-button { grid-column: 1; }
+  .settings-control-group { grid-column: 1; padding: 13px; }
+  .settings-control-grid { grid-template-columns: 1fr; }
+  .settings-control-grid .settings-control-wide { grid-column: 1; }
   .promotion-admin-section { grid-column: 1; }
+  .rewards-admin-section .reward-daily-amounts { grid-column: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .promotion-admin-card { grid-template-columns: 1fr; }
   .promotion-admin-card-heading, .promotion-admin-card label:first-of-type, .promotion-admin-card label:nth-of-type(4), .promotion-admin-card .promotion-banner-upload, .promotion-admin-card .switch-row { grid-column: 1; }
   .quick-actions button { flex: 1; min-width: 120px; }

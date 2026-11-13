@@ -16,6 +16,18 @@ const legacyJsonFile = path.join(directory, "database.json");
 fs.mkdirSync(path.dirname(sqliteFile), { recursive: true });
 
 export const GAME_CATEGORIES = ["Mini Games", "Slots", "Fishing"];
+const DEFAULT_REWARD_SETTINGS = {
+  dailyEnabled: true,
+  dailyRewards: [5, 10, 15, 20, 25, 30, 50],
+  dailyResetTimezone: "UTC",
+  streakResetOnMissedDay: true,
+  vipEnabled: true,
+  vipWindowDays: 30,
+  vipTiers: { silver: 1000, gold: 5000, platinum: 25000 },
+  cashbackEnabled: false,
+  cashbackRate: 5,
+  cashbackWeeklyCap: 50,
+};
 export const db = new DatabaseSync(sqliteFile);
 db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
 const previousUserColumns = db.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
@@ -52,6 +64,44 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_referral_rewards_owner_status
     ON referral_rewards(referrer_user_id, status, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_referral_rewards_pending ON referral_rewards(status, created_at);
+
+  CREATE TABLE IF NOT EXISTS daily_reward_claims (
+    id TEXT PRIMARY KEY, user_id TEXT NOT NULL, claim_date TEXT NOT NULL,
+    streak_day INTEGER NOT NULL, amount_cents INTEGER NOT NULL, created_at TEXT NOT NULL,
+    UNIQUE(user_id, claim_date),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_daily_reward_claims_user_date
+    ON daily_reward_claims(user_id, claim_date DESC);
+  CREATE TABLE IF NOT EXISTS bonus_codes (
+    id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    amount_cents INTEGER NOT NULL, terms TEXT NOT NULL DEFAULT '',
+    expires_at TEXT, max_redemptions INTEGER, active INTEGER NOT NULL DEFAULT 1,
+    created_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS bonus_code_redemptions (
+    id TEXT PRIMARY KEY, code_id TEXT NOT NULL, user_id TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL, created_at TEXT NOT NULL,
+    UNIQUE(code_id, user_id),
+    FOREIGN KEY(code_id) REFERENCES bonus_codes(id),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_bonus_code_redemptions_code
+    ON bonus_code_redemptions(code_id, created_at);
+  CREATE TABLE IF NOT EXISTS reward_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    daily_enabled INTEGER NOT NULL DEFAULT 1,
+    daily_rewards TEXT NOT NULL DEFAULT '[5,10,15,20,25,30,50]',
+    daily_reset_timezone TEXT NOT NULL DEFAULT 'UTC',
+    streak_reset_on_missed_day INTEGER NOT NULL DEFAULT 1,
+    vip_enabled INTEGER NOT NULL DEFAULT 1,
+    vip_window_days INTEGER NOT NULL DEFAULT 30,
+    vip_tiers TEXT NOT NULL DEFAULT '{"silver":1000,"gold":5000,"platinum":25000}',
+    cashback_enabled INTEGER NOT NULL DEFAULT 0,
+    cashback_rate REAL NOT NULL DEFAULT 5,
+    cashback_weekly_cap_cents INTEGER NOT NULL DEFAULT 5000
+  );
+  INSERT OR IGNORE INTO reward_settings (id) VALUES (1);
 
   CREATE TABLE IF NOT EXISTS agent_applications (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL UNIQUE, business_name TEXT NOT NULL DEFAULT '',
@@ -139,7 +189,16 @@ db.exec(`
     support_email TEXT NOT NULL DEFAULT '',
     support_phone TEXT NOT NULL DEFAULT '',
     support_hours TEXT NOT NULL DEFAULT '',
-    promotions TEXT NOT NULL DEFAULT '[]'
+    promotions TEXT NOT NULL DEFAULT '[]',
+    bank_name TEXT NOT NULL DEFAULT '',
+    account_name TEXT NOT NULL DEFAULT '',
+    account_number TEXT NOT NULL DEFAULT '',
+    iban TEXT NOT NULL DEFAULT '',
+    upi_id TEXT NOT NULL DEFAULT '',
+    wallet_name TEXT NOT NULL DEFAULT '',
+    wallet_number TEXT NOT NULL DEFAULT '',
+    payment_instructions TEXT NOT NULL DEFAULT '',
+    jackpot_display_cents INTEGER NOT NULL DEFAULT 1079900420
   );
   CREATE TABLE IF NOT EXISTS app_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS ledger_entries (
@@ -222,8 +281,25 @@ if (!userColumns.includes("google_picture_url")) {
   db.exec("ALTER TABLE users ADD COLUMN google_picture_url TEXT NOT NULL DEFAULT '';");
 }
 const platformSettingColumns = db.prepare("PRAGMA table_info(platform_settings)").all().map((column) => column.name);
-if (!platformSettingColumns.includes("promotions")) {
-  db.exec("ALTER TABLE platform_settings ADD COLUMN promotions TEXT NOT NULL DEFAULT '[]';");
+for (const [column, definition] of Object.entries({
+  promotions: "TEXT NOT NULL DEFAULT '[]'",
+  bank_name: "TEXT NOT NULL DEFAULT ''",
+  account_name: "TEXT NOT NULL DEFAULT ''",
+  account_number: "TEXT NOT NULL DEFAULT ''",
+  iban: "TEXT NOT NULL DEFAULT ''",
+  upi_id: "TEXT NOT NULL DEFAULT ''",
+  wallet_name: "TEXT NOT NULL DEFAULT ''",
+  wallet_number: "TEXT NOT NULL DEFAULT ''",
+  payment_instructions: "TEXT NOT NULL DEFAULT ''",
+  jackpot_display_cents: "INTEGER NOT NULL DEFAULT 1079900420",
+})) {
+  if (!platformSettingColumns.includes(column)) {
+    db.exec(`ALTER TABLE platform_settings ADD COLUMN ${column} ${definition};`);
+  }
+}
+const rewardSettingColumns = db.prepare("PRAGMA table_info(reward_settings)").all().map((column) => column.name);
+if (!rewardSettingColumns.includes("vip_enabled")) {
+  db.exec("ALTER TABLE reward_settings ADD COLUMN vip_enabled INTEGER NOT NULL DEFAULT 1;");
 }
 const gamePlayerColumns = db.prepare("PRAGMA table_info(game_players)").all().map((column) => column.name);
 if (!gamePlayerColumns.includes("provider_created")) {
@@ -323,7 +399,54 @@ export function readPlatformSettings() {
     supportPhone: settings.support_phone,
     supportHours: settings.support_hours,
     promotions: JSON.parse(settings.promotions || "[]"),
+    bankName: settings.bank_name,
+    accountName: settings.account_name,
+    accountNumber: settings.account_number,
+    iban: settings.iban,
+    upiId: settings.upi_id,
+    walletName: settings.wallet_name,
+    walletNumber: settings.wallet_number,
+    paymentInstructions: settings.payment_instructions,
+    jackpotAmount: dollars(settings.jackpot_display_cents),
   };
+}
+
+export function readRewardSettings() {
+  const row = db.prepare("SELECT * FROM reward_settings WHERE id = 1").get();
+  if (!row) return { ...DEFAULT_REWARD_SETTINGS };
+  return {
+    dailyEnabled: Boolean(row.daily_enabled),
+    dailyRewards: JSON.parse(row.daily_rewards || "[]"),
+    dailyResetTimezone: row.daily_reset_timezone || "UTC",
+    streakResetOnMissedDay: Boolean(row.streak_reset_on_missed_day),
+    vipEnabled: Boolean(row.vip_enabled),
+    vipWindowDays: Number(row.vip_window_days),
+    vipTiers: JSON.parse(row.vip_tiers || "{}"),
+    cashbackEnabled: Boolean(row.cashback_enabled),
+    cashbackRate: Number(row.cashback_rate),
+    cashbackWeeklyCap: dollars(row.cashback_weekly_cap_cents),
+  };
+}
+
+export function writeRewardSettings(settings) {
+  db.prepare(`
+    UPDATE reward_settings SET daily_enabled = ?, daily_rewards = ?, daily_reset_timezone = ?,
+      streak_reset_on_missed_day = ?, vip_enabled = ?, vip_window_days = ?, vip_tiers = ?,
+      cashback_enabled = ?, cashback_rate = ?, cashback_weekly_cap_cents = ?
+    WHERE id = 1
+  `).run(
+    bool(settings.dailyEnabled),
+    JSON.stringify(settings.dailyRewards),
+    settings.dailyResetTimezone,
+    bool(settings.streakResetOnMissedDay),
+    bool(settings.vipEnabled),
+    settings.vipWindowDays,
+    JSON.stringify(settings.vipTiers),
+    bool(settings.cashbackEnabled),
+    settings.cashbackRate,
+    cents(settings.cashbackWeeklyCap),
+  );
+  return readRewardSettings();
 }
 
 export function readDb() {
@@ -470,8 +593,12 @@ export function writeDb(source, referralSignup = null) {
     }
     const settings = source.platformSettings || {};
     db.prepare(`
-      INSERT INTO platform_settings (id, announcement, maintenance_mode, support_email, support_phone, support_hours, promotions)
-      VALUES (1, ?, ?, ?, ?, ?, ?)
+      INSERT INTO platform_settings (
+        id, announcement, maintenance_mode, support_email, support_phone, support_hours, promotions,
+        bank_name, account_name, account_number, iban, upi_id, wallet_name, wallet_number,
+        payment_instructions, jackpot_display_cents
+      )
+      VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       String(settings.announcement || ""),
       bool(settings.maintenanceMode),
@@ -479,6 +606,15 @@ export function writeDb(source, referralSignup = null) {
       String(settings.supportPhone || ""),
       String(settings.supportHours || ""),
       JSON.stringify(settings.promotions || []),
+      String(settings.bankName || ""),
+      String(settings.accountName || ""),
+      String(settings.accountNumber || ""),
+      String(settings.iban || ""),
+      String(settings.upiId || ""),
+      String(settings.walletName || ""),
+      String(settings.walletNumber || ""),
+      String(settings.paymentInstructions || ""),
+      cents(settings.jackpotAmount ?? 10799004.2),
     );
     db.exec(`
       DELETE FROM audit_logs

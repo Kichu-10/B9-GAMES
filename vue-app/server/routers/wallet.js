@@ -6,7 +6,7 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { authenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
-import { db, readDb, writeDb, createWithdrawalRequest } from "../database.js";
+import { readDb, writeDb, createWithdrawalRequest } from "../database.js";
 import { currencyForCountry, displayCurrency } from "../services/game-provider.js";
 
 const walletRequestSchema = z.object({
@@ -102,25 +102,6 @@ export function createWalletRouter(uploadDir) {
   router.get("/transactions", authenticate, (req, res) => {
     const db = readDb();
     res.json({ transactions: db.transactions.filter((item) => item.userId === req.user.id).slice(0, 100) });
-  });
-
-  router.get("/game-results", authenticate, (req, res) => {
-    const gameResults = db.prepare(`
-      SELECT id, category, game_name, outcome, amount_cents, reference, created_at
-      FROM game_results
-      WHERE user_id = ?
-      ORDER BY created_at DESC, rowid DESC
-      LIMIT 100
-    `).all(req.user.id).map((row) => ({
-      id: row.id,
-      category: row.category,
-      gameName: row.game_name,
-      outcome: row.outcome,
-      amount: row.amount_cents / 100,
-      reference: row.reference,
-      createdAt: row.created_at,
-    }));
-    res.json({ gameResults });
   });
 
   return router;

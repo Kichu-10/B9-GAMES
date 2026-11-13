@@ -13,9 +13,14 @@ export const router = createRouter({
     { path: "/", component: App },
     { path: "/games", component: App },
     { path: "/promotions", component: App },
+    { path: "/rewards", component: App },
     { path: "/wallet", redirect: { path: "/account", query: { section: "wallet" } } },
     { path: "/agent", component: () => import("./AgentApp.vue") },
     { path: "/account", component: App },
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],
+});
+
+router.beforeEach((to) => {
+  if (to.path === "/account" && to.query.section === "rewards") return { path: "/rewards" };
 });
