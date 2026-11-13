@@ -106,10 +106,13 @@
             type="button"
             class="category"
             :class="{ selected: homeSelectedCategory === category.label }"
+            :aria-label="category.label"
             :aria-pressed="homeSelectedCategory === category.label"
             @click="selectHomeCategory(category.label)"
           >
-            <span class="category-icon"><img :src="category.image" :alt="category.label" class="category-image" /></span>
+            <span class="category-icon category-icon-brand">
+              <img :src="category.logo" :alt="category.logoAlt" class="category-image" />
+            </span>
             <span class="category-label">{{ category.label }}</span>
           </button>
         </div>
@@ -293,9 +296,9 @@
               :aria-pressed="selectedProvider === provider.code"
               @click="selectGameProvider(provider.code)"
             >
-              <span class="game-provider-logo">
-                <img v-if="provider.logo" :src="provider.logo" alt="" loading="lazy" decoding="async" />
-                <template v-else>{{ providerInitials(provider.name) }}</template>
+              <span class="game-provider-logo" :class="{ 'game-provider-logo-dark': gameProviderLogoUsesDarkBackground(provider) }">
+                <img v-if="gameProviderLogo(provider)" :src="gameProviderLogo(provider)" alt="" loading="lazy" decoding="async" />
+                <Gamepad2 v-else :size="16" aria-hidden="true" />
               </span>
               <span>{{ provider.name }}</span>
             </button>
@@ -478,8 +481,6 @@
         <nav class="profile-tabs" aria-label="Account sections" role="tablist">
           <button type="button" role="tab" :aria-selected="profileSection === 'profile'" @click="selectAccountSection('profile')"><UserRound :size="16" />Profile</button>
           <button type="button" role="tab" :aria-selected="profileSection === 'wallet'" class="active" @click="selectAccountSection('wallet')"><Wallet :size="16" />Wallet</button>
-          <button type="button" role="tab" :aria-selected="profileSection === 'rewards'" @click="selectAccountSection('rewards')"><Gift :size="16" />Rewards</button>
-          <button type="button" role="tab" aria-selected="false" @click="navigateTo('/agent')"><Users :size="16" />Agent</button>
         </nav>
         <div v-if="!signedIn" class="signed-out-card">
           <Wallet :size="30" />
@@ -642,42 +643,194 @@
         </template>
       </section>
 
-      <section v-else-if="currentPage === 'account' && profileSection !== 'wallet'" class="page-section account-page">
+      <section v-else-if="(currentPage === 'account' && profileSection !== 'wallet') || currentPage === 'rewards'" class="page-section account-page">
         <div class="page-heading">
-          <span class="eyebrow">YOUR ACCOUNT</span>
-          <h1>{{ profileSection === "agent" ? "Agent Center" : profileSection === "rewards" ? "Rewards" : "Account" }}</h1>
-          <p>{{ profileSection === "agent" ? "Apply to manage player accounts or open your approved agent dashboard." : profileSection === "rewards" ? "Share your referral code and track pending and credited rewards." : "Profile, wallet, rewards, agent tools, verification, and support." }}</p>
+          <span class="eyebrow">{{ currentPage === "rewards" ? "MEMBER BENEFITS" : "YOUR ACCOUNT" }}</span>
+          <h1>{{ currentPage === "rewards" ? "Rewards" : "Account" }}</h1>
+          <p>{{ currentPage === "rewards" ? "Check in daily, explore member offers, and track your referral rewards." : "Manage your profile, wallet, verification, and account settings." }}</p>
         </div>
-        <nav class="profile-tabs" aria-label="Account sections" role="tablist">
+        <nav v-if="currentPage === 'account'" class="profile-tabs" aria-label="Account sections" role="tablist">
           <button type="button" role="tab" :aria-selected="profileSection === 'profile'" :class="{ active: profileSection === 'profile' }" @click="selectAccountSection('profile')"><UserRound :size="16" />Profile</button>
           <button type="button" role="tab" aria-selected="false" @click="selectAccountSection('wallet')"><Wallet :size="16" />Wallet</button>
-          <button type="button" role="tab" :aria-selected="profileSection === 'rewards'" :class="{ active: profileSection === 'rewards' }" @click="selectAccountSection('rewards')"><Gift :size="16" />Rewards</button>
-          <button type="button" role="tab" aria-selected="false" @click="navigateTo('/agent')"><Users :size="16" />Agent</button>
+        </nav>
+        <nav v-if="currentPage === 'rewards'" class="rewards-tabs" aria-label="Reward categories" role="tablist">
+          <button type="button" role="tab" :aria-selected="rewardsTab === 'daily'" :class="{ active: rewardsTab === 'daily' }" @click="rewardsTab = 'daily'"><CalendarDays :size="16" />Daily</button>
+          <button type="button" role="tab" :aria-selected="rewardsTab === 'bonuses'" :class="{ active: rewardsTab === 'bonuses' }" @click="rewardsTab = 'bonuses'"><Gift :size="16" />Bonuses</button>
+          <button type="button" role="tab" :aria-selected="rewardsTab === 'cashback'" :class="{ active: rewardsTab === 'cashback' }" @click="rewardsTab = 'cashback'"><CircleAlert :size="16" />Cashback</button>
+          <button type="button" role="tab" :aria-selected="rewardsTab === 'vip'" :class="{ active: rewardsTab === 'vip' }" @click="rewardsTab = 'vip'"><BadgeCheck :size="16" />VIP</button>
+          <button type="button" role="tab" :aria-selected="rewardsTab === 'code'" :class="{ active: rewardsTab === 'code' }" @click="rewardsTab = 'code'"><ShieldCheck :size="16" />Bonus code</button>
+          <button type="button" role="tab" :aria-selected="rewardsTab === 'referrals'" :class="{ active: rewardsTab === 'referrals' }" @click="rewardsTab = 'referrals'"><Users :size="16" />Referrals</button>
         </nav>
         <template v-if="signedIn">
-          <template v-if="profileSection === 'profile'">
-          <section class="account-hero">
-            <div class="account-avatar">
-              <img v-if="displayedAvatarUrl" :src="displayedAvatarUrl" alt="Profile picture" @error="handleAvatarError" />
-              <span v-else>{{ user?.username?.slice(0, 1).toUpperCase() || "U" }}</span>
-            </div>
-            <div class="account-hero-identity">
-              <span class="account-hero-label">Signed in as</span>
-              <strong>{{ user?.username }}</strong>
-              <small>{{ user?.email || "No email linked" }}</small>
-              <div class="account-badges">
-                <span class="account-badge" :class="user?.kycStatus === 'verified' ? 'ok' : 'warn'">
-                  <BadgeCheck v-if="user?.kycStatus === 'verified'" :size="12" />
-                  <ShieldCheck v-else :size="12" />
-                  {{ kycBadgeLabel(user?.kycStatus) }}
-                </span>
-                <span class="account-badge neutral">
-                  <CalendarDays :size="12" />
-                  Joined {{ formatMemberSince(user?.createdAt) }}
-                </span>
+          <template v-if="currentPage === 'rewards'">
+            <p v-if="rewardsLoading && !rewardsDashboard" class="empty-state">Loading your rewards…</p>
+            <p v-else-if="rewardsError && !rewardsDashboard" class="empty-state" role="alert">{{ rewardsError }}</p>
+            <template v-else-if="rewardsDashboard">
+              <section v-if="rewardsTab === 'daily'" class="daily-rewards-section">
+                <div class="daily-rewards-banner">
+                  <span class="eyebrow">MEMBER BENEFITS</span>
+                  <h2>Daily rewards</h2>
+                  <p>Check in each day to keep your 7-day streak going.</p>
+                </div>
+                <article class="daily-checkin-card">
+                  <div class="daily-checkin-heading">
+                    <span class="daily-checkin-icon"><CalendarDays :size="26" /></span>
+                    <div><h2>Daily check-in</h2><p>{{ rewardsDashboard.daily.claimedToday ? "Today's reward has been claimed." : `Day ${rewardsDashboard.daily.claimDay} of 7 is ready to claim.` }}</p></div>
+                    <strong class="daily-streak-count">{{ rewardsDashboard.daily.streakDays }}/7</strong>
+                  </div>
+                  <div class="daily-reward-days" aria-label="Seven day reward streak">
+                    <div
+                      v-for="(reward, index) in rewardsDashboard.daily.rewards"
+                      :key="index"
+                      class="daily-reward-day"
+                      :class="{
+                        claimed: (rewardsDashboard.daily.claimedToday && index + 1 <= rewardsDashboard.daily.claimDay)
+                          || (rewardsDashboard.daily.claimable && index + 1 < rewardsDashboard.daily.claimDay),
+                        current: index + 1 === rewardsDashboard.daily.claimDay,
+                      }"
+                    >
+                      <span>{{ (rewardsDashboard.daily.claimedToday && index + 1 <= rewardsDashboard.daily.claimDay) || (rewardsDashboard.daily.claimable && index + 1 < rewardsDashboard.daily.claimDay) ? "✓" : index + 1 }}</span>
+                      <small>+{{ currencyLabel }} {{ formatAmount(reward) }}</small>
+                    </div>
+                  </div>
+                  <button class="daily-claim-button" type="button" :disabled="!rewardsDashboard.daily.claimable || dailyClaiming" @click="claimDailyReward">
+                    {{ dailyClaiming ? "Claiming…" : !rewardsDashboard.daily.enabled ? "Daily rewards unavailable" : rewardsDashboard.daily.claimedToday ? "Claimed today" : `Claim Day ${rewardsDashboard.daily.claimDay}` }}
+                  </button>
+                  <p class="daily-reset-note">{{ rewardsDashboard.daily.streakResetOnMissedDay ? "A missed day resets your streak to Day 1." : "A missed day pauses your streak." }} Claims reset at midnight {{ rewardsDashboard.daily.resetTimezone }}.</p>
+                  <p v-if="dailyClaimError" class="referral-feedback error" role="alert">{{ dailyClaimError }}</p>
+                </article>
+              </section>
+
+              <section v-else-if="rewardsTab === 'bonuses'" class="rewards-content-card">
+                <div class="rewards-content-heading"><Gift :size="22" /><div><h2>Member bonuses</h2><p>Current offers and their terms.</p></div></div>
+                <p v-if="promotionsLoading" class="referral-feedback" role="status">Loading member offers…</p>
+                <p v-else-if="promotionsError" class="referral-feedback error" role="alert">{{ promotionsError }}</p>
+                <div v-else-if="activePromotions.length" class="rewards-offer-list">
+                  <article v-for="promotion in activePromotions" :key="promotion.id" class="rewards-offer-card">
+                    <strong>{{ promotion.title }}</strong>
+                    <p v-if="promotion.description">{{ promotion.description }}</p>
+                    <span v-if="promotion.reward">{{ promotion.reward }}</span>
+                    <small v-if="promotion.terms">{{ promotion.terms }}</small>
+                    <button type="button" class="avatar-upload-button" @click="navigateTo('/promotions')">View promotion</button>
+                  </article>
+                </div>
+                <p v-else class="referral-feedback">There are no active bonus offers right now.</p>
+              </section>
+
+              <section v-else-if="rewardsTab === 'cashback'" class="rewards-content-card cashback-unavailable-card">
+                <div class="rewards-content-heading"><CircleAlert :size="22" /><div><h2>Cashback</h2><p>Configured at {{ rewardsDashboard.cashback.rate }}%, up to {{ currencyLabel }} {{ formatAmount(rewardsDashboard.cashback.weeklyCap) }} per week.</p></div></div>
+                <p class="cashback-unavailable-note">{{ rewardsDashboard.cashback.message }}</p>
+                <p class="referral-review-note">Cashback will only be calculated from verified, settled game results. Voided and refunded rounds will not count.</p>
+              </section>
+
+              <section v-else-if="rewardsTab === 'vip'" class="rewards-content-card vip-rewards-card">
+                <div class="rewards-content-heading"><BadgeCheck :size="22" /><div><h2>B9 VIP status</h2><p>Your tier is based on successful deposits in the last {{ rewardsDashboard.vip.windowDays }} days.</p></div></div>
+                <p v-if="!rewardsDashboard.vip.enabled" class="cashback-unavailable-note">VIP levels are currently disabled by the platform.</p>
+                <template v-else>
+                <div class="vip-tier-summary">
+                  <span class="vip-tier-badge"><BadgeCheck :size="20" />{{ rewardsDashboard.vip.tier }}</span>
+                  <div><small>Eligible deposits · last 30 days</small><strong>{{ currencyLabel }} {{ formatAmount(rewardsDashboard.vip.totalDeposits) }}</strong></div>
+                </div>
+                <template v-if="rewardsDashboard.vip.nextTier">
+                  <div class="vip-progress-label"><span>{{ rewardsDashboard.vip.tier }}</span><span>{{ rewardsDashboard.vip.nextTier }}</span></div>
+                  <div class="vip-progress-track" role="progressbar" :aria-valuenow="Math.round(rewardsDashboard.vip.progress)" aria-valuemin="0" aria-valuemax="100"><span :style="{ width: `${rewardsDashboard.vip.progress}%` }"></span></div>
+                  <p class="referral-review-note">{{ currencyLabel }} {{ formatAmount(rewardsDashboard.vip.remaining) }} in eligible deposits to reach {{ rewardsDashboard.vip.nextTier }}.</p>
+                </template>
+                <p v-else class="referral-review-note">You have reached the highest listed tier.</p>
+                <p class="referral-review-note">VIP status currently displays your tier and progress. No additional cash perks are configured.</p>
+                </template>
+              </section>
+
+              <section v-else-if="rewardsTab === 'code'" class="rewards-content-card">
+                <div class="rewards-content-heading"><ShieldCheck :size="22" /><div><h2>Redeem a bonus code</h2><p>Each code can be redeemed once per account. Credits go to your Main Wallet.</p></div></div>
+                <form class="bonus-code-redeem-form" @submit.prevent="previewBonusCode">
+                  <label for="member-bonus-code">Bonus code</label>
+                  <div><input id="member-bonus-code" v-model="bonusCodeInput" autocomplete="off" maxlength="32" required placeholder="Enter your code" @input="clearBonusCodePreview" /><button class="primary-button" type="submit" :disabled="bonusCodeChecking || bonusCodeRedeeming">{{ bonusCodeChecking ? "Checking…" : "Check code" }}</button></div>
+                </form>
+                <p v-if="bonusCodeError" class="referral-feedback error" role="alert">{{ bonusCodeError }}</p>
+                <p v-else-if="bonusCodeMessage" class="referral-feedback success" role="status">{{ bonusCodeMessage }}</p>
+                <section v-if="bonusCodePreview" class="bonus-code-preview">
+                  <div><strong>{{ bonusCodePreview.code }}</strong><span>{{ currencyLabel }} {{ formatAmount(bonusCodePreview.amount) }} Main Wallet credit</span></div>
+                  <p>{{ bonusCodePreview.terms }}</p>
+                  <small>Expires {{ new Date(bonusCodePreview.expiresAt).toLocaleString() }}. One redemption per account.</small>
+                  <button class="primary-button" type="button" :disabled="bonusCodeRedeeming" @click="redeemBonusCode">{{ bonusCodeRedeeming ? "Redeeming…" : "Confirm and redeem" }}</button>
+                </section>
+              </section>
+
+              <section v-else class="account-profile-card referral-card">
+                <div class="referral-card-heading">
+                  <div class="account-profile-head">
+                    <Gift :size="18" />
+                    <div><strong>Refer a friend</strong><small>Share your code and track rewards in one place.</small></div>
+                  </div>
+                  <div class="referral-reward-summary">
+                    <span>{{ referralData?.pendingCount ?? 0 }} pending</span>
+                    <strong>{{ currencyLabel }} {{ formatAmount(referralData?.approvedRewards ?? 0) }} approved</strong>
+                  </div>
+                </div>
+                <div class="referral-code-box">
+                  <span>Your referral code</span>
+                  <strong>{{ referralData?.code || user?.referralCode || "Loading…" }}</strong>
+                </div>
+                <p class="referral-review-note">Referral rewards are credited to your wallet after admin review.</p>
+                <div class="referral-card-actions">
+                  <button type="button" class="avatar-upload-button" :disabled="!referralData?.code" @click="copyReferralLink">Copy invite link</button>
+                  <button type="button" class="avatar-upload-button" :disabled="!referralData?.code" @click="shareReferralLink">Share</button>
+                </div>
+                <p v-if="referralLoading" class="referral-feedback" role="status">Loading referral activity…</p>
+                <p v-else-if="referralError" class="referral-feedback error" role="alert">{{ referralError }}</p>
+                <div v-else-if="referralData?.referrals.length" class="referral-list">
+                  <div v-for="referral in referralData.referrals" :key="referral.id" class="referral-list-row">
+                    <div>
+                      <strong>{{ referral.username }}</strong>
+                      <small>Joined {{ formatMemberSince(referral.createdAt) }}</small>
+                      <small v-if="referral.reviewNote">{{ referral.reviewNote }}</small>
+                    </div>
+                    <span class="referral-status" :class="referral.status">{{ formatReferralStatus(referral.status) }}</span>
+                    <strong v-if="referral.status === 'approved'">{{ currencyLabel }} {{ formatAmount(referral.reward) }}</strong>
+                  </div>
+                </div>
+                <p v-else-if="!referralLoading" class="referral-feedback">No referrals yet. Share your invite link to get started.</p>
+              </section>
+            </template>
+          </template>
+          <template v-else-if="profileSection === 'profile'">
+          <div class="account-hero-row">
+            <section class="account-hero">
+              <div class="account-avatar">
+                <img v-if="displayedAvatarUrl" :src="displayedAvatarUrl" alt="Profile picture" @error="handleAvatarError" />
+                <span v-else>{{ user?.username?.slice(0, 1).toUpperCase() || "U" }}</span>
               </div>
-            </div>
-          </section>
+              <div class="account-hero-identity">
+                <span class="account-hero-label">Signed in as</span>
+                <strong>{{ user?.username }}</strong>
+                <small>{{ user?.email || "No email linked" }}</small>
+                <div class="account-badges">
+                  <span class="account-badge" :class="user?.kycStatus === 'verified' ? 'ok' : 'warn'">
+                    <BadgeCheck v-if="user?.kycStatus === 'verified'" :size="12" />
+                    <ShieldCheck v-else :size="12" />
+                    {{ kycBadgeLabel(user?.kycStatus) }}
+                  </span>
+                  <span class="account-badge neutral">
+                    <CalendarDays :size="12" />
+                    Joined {{ formatMemberSince(user?.createdAt) }}
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section class="account-profile-card account-picture-card">
+              <div class="account-profile-head">
+                <UserRound :size="18" />
+                <div><strong>Profile picture</strong><small>JPEG, PNG, or WebP · up to 3 MB</small></div>
+              </div>
+              <label class="avatar-upload-button" :class="{ uploading: avatarUploading }">
+                <UserRound :size="18" />
+                {{ avatarUploading ? "Uploading picture…" : displayedAvatarUrl ? "Change picture" : "Upload picture" }}
+                <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="avatarUploading" @change="uploadProfilePicture" />
+              </label>
+            </section>
+          </div>
 
           <section class="account-balance-card" aria-label="Available balance">
             <span class="account-balance-icon"><Wallet :size="20" /></span>
@@ -706,88 +859,20 @@
           </section>
 
           <section class="account-group">
-            <h2 class="account-group-title">Agent network</h2>
+            <h2 class="account-group-title">Join the Agent Program</h2>
             <div class="account-action-grid">
-              <button @click="navigateTo('/agent')"><Users :size="21" /><span><strong>Agent program</strong><small>Apply to manage player accounts</small></span><ChevronRight :size="18" /></button>
+              <button @click="navigateTo('/agent')"><Users :size="21" /><span><strong>Become a B9 Agent</strong><small>Open the separate agent portal and apply to manage player accounts</small></span><ChevronRight :size="18" /></button>
             </div>
           </section>
-
-          <section class="account-group">
-            <h2 class="account-group-title">More account tools</h2>
-            <div class="account-action-grid">
-              <button @click="showFavorites"><Star :size="21" /><span><strong>Favorite games</strong><small>{{ favoriteNames }}</small></span><ChevronRight :size="18" /></button>
-              <button @click="modal = 'support'"><LifeBuoy :size="21" /><span><strong>Help &amp; support</strong><small>Contact support about your account</small></span><ChevronRight :size="18" /></button>
-            </div>
-          </section>
-
-          </template>
-
-          <section v-else-if="profileSection === 'rewards'" class="account-profile-card referral-card">
-            <div class="referral-card-heading">
-              <div class="account-profile-head">
-                <Gift :size="18" />
-                <div><strong>Refer a friend</strong><small>Share your code and track rewards in one place.</small></div>
-              </div>
-              <div class="referral-reward-summary">
-                <span>{{ referralData?.pendingCount ?? 0 }} pending</span>
-                <strong>{{ currencyLabel }} {{ formatAmount(referralData?.approvedRewards ?? 0) }} approved</strong>
-              </div>
-            </div>
-            <div class="referral-code-box">
-              <span>Your referral code</span>
-              <strong>{{ referralData?.code || user?.referralCode || "Loading…" }}</strong>
-            </div>
-            <p class="referral-review-note">Rewards are credited to your wallet after admin review. Reward amounts are set during review.</p>
-            <div class="referral-card-actions">
-              <button type="button" class="avatar-upload-button" :disabled="!referralData?.code" @click="copyReferralLink">Copy invite link</button>
-              <button type="button" class="avatar-upload-button" :disabled="!referralData?.code" @click="shareReferralLink">Share</button>
-            </div>
-            <p v-if="referralLoading" class="referral-feedback" role="status">Loading referral activity…</p>
-            <p v-else-if="referralError" class="referral-feedback error" role="alert">{{ referralError }}</p>
-            <div v-else-if="referralData?.referrals.length" class="referral-list">
-              <div v-for="referral in referralData.referrals" :key="referral.id" class="referral-list-row">
-                <div>
-                  <strong>{{ referral.username }}</strong>
-                  <small>Joined {{ formatMemberSince(referral.createdAt) }}</small>
-                  <small v-if="referral.reviewNote">{{ referral.reviewNote }}</small>
-                </div>
-                <span class="referral-status" :class="referral.status">{{ formatReferralStatus(referral.status) }}</span>
-                <strong v-if="referral.status === 'approved'">{{ currencyLabel }} {{ formatAmount(referral.reward) }}</strong>
-              </div>
-            </div>
-            <p v-else-if="!referralLoading" class="referral-feedback">No referrals yet. Share your invite link to get started.</p>
-          </section>
-
-          <section v-else class="account-profile-card agent-entry-card">
-            <div class="account-profile-head">
-              <Users :size="18" />
-              <div><strong>Agent program</strong><small>Apply to manage player accounts or continue to your approved dashboard.</small></div>
-            </div>
-            <button type="button" class="primary-button" @click="navigateTo('/agent')">Open agent portal</button>
-          </section>
-
-          <template v-if="profileSection === 'profile'">
-          <section class="account-profile-card">
-            <div class="account-profile-head">
-              <UserRound :size="18" />
-              <div><strong>Profile picture</strong><small>JPEG, PNG, or WebP · up to 3 MB</small></div>
-            </div>
-            <label class="avatar-upload-button" :class="{ uploading: avatarUploading }">
-              <UserRound :size="18" />
-              {{ avatarUploading ? "Uploading picture…" : displayedAvatarUrl ? "Change picture" : "Upload picture" }}
-              <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="avatarUploading" @change="uploadProfilePicture" />
-            </label>
-          </section>
-
 
           </template>
 
           <button class="sign-out-button" @click="toggleSignIn"><LogOut :size="19" />Sign out</button>
         </template>
         <div v-else class="signed-out-card">
-          <component :is="profileSection === 'rewards' ? Gift : UserRound" :size="30" />
-          <h2>{{ profileSection === "rewards" ? "Sign in to view your rewards" : "Sign in to your account" }}</h2>
-          <p>{{ profileSection === "rewards" ? "Sign in to get your referral code, share invites, and track reward approvals." : "Access your profile, verification status, saved games, and messages." }}</p>
+          <component :is="currentPage === 'rewards' ? Gift : UserRound" :size="30" />
+          <h2>{{ currentPage === "rewards" ? "Sign in to view your rewards" : "Sign in to your account" }}</h2>
+          <p>{{ currentPage === "rewards" ? "Sign in to claim daily rewards, redeem bonus codes, and track referrals." : "Access your profile, verification status, saved games, and messages." }}</p>
           <button class="primary-button" @click="showAuth">Sign in or create account</button>
         </div>
       </section>
@@ -795,7 +880,6 @@
 
     <BottomNav
       :active-page="route.path"
-      :active-section="profileSection"
       @navigate="navigateTo"
     />
 
@@ -887,26 +971,6 @@
             <div class="transaction-result">
               <strong>{{ currencyLabel }} {{ formatMoney(transaction.amount) }}</strong>
               <span :class="transaction.status">{{ transaction.status }}</span>
-            </div>
-          </article>
-        </div>
-
-        <div v-else-if="modal === 'game-records'" class="modal-content transaction-list">
-          <p v-if="gameResultsMode === 'profit-loss'" class="game-results-note">
-            Net profit and loss cannot be calculated reliably because B9 does not currently receive complete wager and stake data. The list below shows recorded game outcomes only.
-          </p>
-          <p v-if="gameResultsLoading" class="bonus-note">Loading game records...</p>
-          <p v-else-if="gameResultsError" class="empty-state" role="alert">{{ gameResultsError }}</p>
-          <p v-else-if="gameResults.length === 0" class="empty-state">No recorded game results yet.</p>
-          <article v-for="result in gameResults" :key="result.id" class="transaction-card">
-            <div>
-              <strong>{{ result.gameName || result.category || "Game result" }}</strong>
-              <small>{{ formatDate(result.createdAt) }}</small>
-              <small>{{ result.category }}<template v-if="result.reference"> · Ref {{ result.reference }}</template></small>
-            </div>
-            <div class="transaction-result">
-              <strong>{{ currencyLabel }} {{ formatMoney(result.amount) }}</strong>
-              <span>{{ result.outcome }}</span>
             </div>
           </article>
         </div>
@@ -1062,19 +1126,33 @@ import fish from "./assets/g-fish.webp";
 import slot from "./assets/g-slot.webp";
 import b9Logo from "./assets/b9-logo.webp";
 import jackpotBanner from "./assets/jackpot-banner.webp";
-import popularCategory from "./assets/01_popular.webp";
-import pgSlotCategory from "./assets/02_pg_slot.webp";
-import spribeCategory from "./assets/03_spribe.webp";
-import fishingCategory from "./assets/04_fishing.webp";
-import inOutCategory from "./assets/05_inout.webp";
+import popularCategoryLogo from "./assets/category-icons/01_popular.png";
+import pgSlotCategoryLogo from "./assets/category-icons/02_pg_slot.png";
+import spribeCategoryLogo from "./assets/category-icons/03_spribe.png";
+import fishingCategoryLogo from "./assets/category-icons/04_fishing.png";
+import inOutCategoryLogo from "./assets/category-icons/05_inout.png";
+import pgSoftLogo from "./assets/provider-logos/pgsoft.png";
+import inOutLogo from "./assets/provider-logos/inout.svg";
 
-type Modal = "menu" | "promo" | "profile" | "inbox" | "auth" | "kyc" | "transactions" | "game-records" | "favorites" | "support" | "game-funding" | null;
+type Modal = "menu" | "promo" | "profile" | "inbox" | "auth" | "kyc" | "transactions" | "favorites" | "support" | "game-funding" | null;
 type AuthUser = { id: string; username: string; phone: string; email: string; country: string; kycStatus: string; role: "user" | "agent" | "admin"; balance: number; status: string; createdAt: string; lastLoginAt: string | null; googlePictureUrl?: string; referralCode?: string };
 type WalletTransaction = { id: string; type: "deposit" | "withdrawal"; amount: number; status: string; createdAt: string; paymentMethod?: string; paymentReference?: string; paymentNote?: string };
-type GameResult = { id: string; category: string; gameName: string; outcome: string; amount: number; reference: string; createdAt: string };
-type ProfileShortcutAction = "wallet" | "bonuses" | "bonus-code" | "betting-record" | "profit-loss" | "deposit-record" | "withdraw-record" | "account-record" | "my-accounts" | "deposit-problem" | "withdraw-password" | "security-center" | "invite-friends" | "notifications" | "suggestion" | "vip";
+type ProfileShortcutAction = "wallet" | "promotions" | "transactions" | "profile" | "security" | "notifications" | "favorites" | "support";
 type Referral = { id: string; username: string; status: string; reward: number; createdAt: string; reviewedAt: string | null; reviewNote: string };
 type ReferralData = { code: string; referrals: Referral[]; pendingCount: number; approvedRewards: number };
+type RewardsDashboard = {
+  daily: {
+    today: string; claimedToday: boolean; claimable: boolean; claimDay: number; claimAmount: number;
+    enabled: boolean; streakDays: number; rewards: number[]; resetTimezone: string; streakResetOnMissedDay: boolean;
+    history: { claimDate: string; day: number; amount: number }[];
+  };
+  vip: {
+    enabled: boolean; tier: string; totalDeposits: number; nextTier: string | null; nextThreshold: number | null;
+    remaining: number; progress: number; windowDays: number; tiers: { name: string; threshold: number }[];
+  };
+  cashback: { enabled: boolean; configuredEnabled: boolean; rate: number; weeklyCap: number; message: string };
+};
+type RewardsTab = "daily" | "bonuses" | "cashback" | "vip" | "code" | "referrals";
 type PaymentDetails = { bankName: string; accountName: string; accountNumber: string; iban: string; upiId: string; walletName: string; walletNumber: string; instructions: string };
 type InboxMessage = { id: string; type: string; title: string; message: string; read: boolean; createdAt: string };
 type Promotion = { id: string; title: string; description: string; reward: string; terms: string; active: boolean; bannerImage?: string; bannerUrl?: string; bannerIncludesText?: boolean };
@@ -1090,6 +1168,12 @@ type Game = {
   thumbnail?: string;
 };
 type GameProvider = { code: string; name: string; logo?: string };
+type GameCategoryItem = {
+  label: string;
+  logo: string;
+  logoAlt: string;
+};
+type HomeCategoryItem = GameCategoryItem & { section: string };
 type GameLobbyTab = "all" | "hot" | "recent" | "favorites";
 type GameSection = {
   category: string;
@@ -1110,20 +1194,20 @@ const pageLinks = [
   { path: "/promotions", label: "Promotions" },
   { path: "/account", label: "Account" },
 ];
-const baseCategoryItems = [
-  { label: "Popular" as const, image: popularCategory },
-  { label: "PG Slot" as const, image: pgSlotCategory },
-  { label: "Spribe" as const, image: spribeCategory },
-  { label: "Fishing" as const, image: fishingCategory },
-  { label: "InOut" as const, image: inOutCategory },
+const baseCategoryItems: GameCategoryItem[] = [
+  { label: "Popular", logo: popularCategoryLogo, logoAlt: "Popular games" },
+  { label: "PG Slot", logo: pgSlotCategoryLogo, logoAlt: "PG Slot logo" },
+  { label: "Spribe", logo: spribeCategoryLogo, logoAlt: "Spribe logo" },
+  { label: "Fishing", logo: fishingCategoryLogo, logoAlt: "Fishing games" },
+  { label: "InOut", logo: inOutCategoryLogo, logoAlt: "InOut logo" },
 ];
 const gameCategories = baseCategoryItems;
-const homeCategoryItems = [
-  { label: "Popular", image: popularCategory, section: "Popular" },
-  { label: "PG Slot", image: pgSlotCategory, section: "Slots" },
-  { label: "Spribe", image: spribeCategory, section: "Mini Games" },
-  { label: "Fishing", image: fishingCategory, section: "Fishing" },
-  { label: "InOut", image: inOutCategory, section: "Mini Games" },
+const homeCategoryItems: HomeCategoryItem[] = [
+  { label: "Popular", logo: popularCategoryLogo, logoAlt: "Popular games", section: "Popular" },
+  { label: "PG Slot", logo: pgSlotCategoryLogo, logoAlt: "PG Slot logo", section: "Slots" },
+  { label: "Spribe", logo: spribeCategoryLogo, logoAlt: "Spribe logo", section: "Mini Games" },
+  { label: "Fishing", logo: fishingCategoryLogo, logoAlt: "Fishing games", section: "Fishing" },
+  { label: "InOut", logo: inOutCategoryLogo, logoAlt: "InOut logo", section: "Mini Games" },
 ];
 const homeSectionIcons: Record<string, typeof Flame> = {
   Popular: Flame,
@@ -1226,13 +1310,21 @@ const transactionFilter = ref<"all" | "deposit" | "withdrawal">("all");
 const visibleWalletTransactions = computed(() => transactionFilter.value === "all"
   ? walletTransactions.value
   : walletTransactions.value.filter((transaction) => transaction.type === transactionFilter.value));
-const gameResults = ref<GameResult[]>([]);
-const gameResultsLoading = ref(false);
-const gameResultsError = ref("");
-const gameResultsMode = ref<"records" | "profit-loss">("records");
 const referralData = ref<ReferralData | null>(null);
 const referralLoading = ref(false);
 const referralError = ref("");
+const rewardsDashboard = ref<RewardsDashboard | null>(null);
+const rewardsLoading = ref(false);
+const rewardsError = ref("");
+const dailyClaimError = ref("");
+const rewardsTab = ref<RewardsTab>("daily");
+const dailyClaiming = ref(false);
+const bonusCodeInput = ref("");
+const bonusCodePreview = ref<{ code: string; amount: number; terms: string; expiresAt: string } | null>(null);
+const bonusCodeChecking = ref(false);
+const bonusCodeRedeeming = ref(false);
+const bonusCodeMessage = ref("");
+const bonusCodeError = ref("");
 const paymentMethod = ref("");
 const paymentReference = ref("");
 const paymentNote = ref("");
@@ -1257,21 +1349,13 @@ const supportMessage = ref("");
 const supportLoading = ref(false);
 const profileShortcuts: { title: string; icon: typeof Wallet; action: ProfileShortcutAction }[] = [
   { title: "Wallet", icon: Wallet, action: "wallet" },
-  { title: "Bonuses", icon: Gift, action: "bonuses" },
-  { title: "Bonus Code", icon: Copy, action: "bonus-code" },
-  { title: "Betting Record", icon: Gamepad2, action: "betting-record" },
-  { title: "Profit And Loss", icon: Landmark, action: "profit-loss" },
-  { title: "Deposit Record", icon: ArrowDownLeft, action: "deposit-record" },
-  { title: "Withdraw Records", icon: ArrowUpRight, action: "withdraw-record" },
-  { title: "Account Record", icon: UserRound, action: "account-record" },
-  { title: "My Accounts", icon: Users, action: "my-accounts" },
-  { title: "Deposit Problem", icon: CircleAlert, action: "deposit-problem" },
-  { title: "Withdraw Password", icon: ShieldCheck, action: "withdraw-password" },
-  { title: "Security Center", icon: ShieldCheck, action: "security-center" },
-  { title: "Invite Friends", icon: Users, action: "invite-friends" },
+  { title: "Promotions", icon: Gift, action: "promotions" },
+  { title: "Transactions", icon: ArrowUpRight, action: "transactions" },
+  { title: "Profile details", icon: UserRound, action: "profile" },
+  { title: "Identity verification", icon: ShieldCheck, action: "security" },
   { title: "Notifications", icon: Mail, action: "notifications" },
-  { title: "Suggestion", icon: LifeBuoy, action: "suggestion" },
-  { title: "VIP", icon: Star, action: "vip" },
+  { title: "Favorites", icon: Star, action: "favorites" },
+  { title: "Help & support", icon: LifeBuoy, action: "support" },
 ];
 const maintenanceMode = ref(false);
 const promotions = ref<Promotion[]>([]);
@@ -1285,12 +1369,14 @@ let promotionCarouselTimer: ReturnType<typeof setInterval> | undefined;
 let googleScriptPromise: Promise<void> | undefined;
 let googleInitialized = false;
 let referralRequestId = 0;
+let rewardsRequestId = 0;
 
 const currentPage = computed(() => route.path.slice(1) || "home");
 const profileSection = computed(() => {
+  if (route.path === "/rewards") return "rewards";
   if (route.path === "/wallet") return "wallet";
   const section = route.query.section;
-  return section === "wallet" || section === "agent" || section === "rewards" ? section : "profile";
+  return section === "wallet" ? section : "profile";
 });
 const pageMetadata = computed(() => {
   const metadata: Record<string, { title: string; description: string }> = {
@@ -1309,6 +1395,10 @@ const pageMetadata = computed(() => {
     wallet: {
       title: "Wallet | B9 Game",
       description: "Manage your B9 Game balance, deposits, withdrawals, and transactions.",
+    },
+    rewards: {
+      title: "Rewards | B9 Game",
+      description: "Share your B9 Game invite code and track referrals and reward approvals.",
     },
     account: {
       title: "Account | B9 Game",
@@ -1381,7 +1471,6 @@ const modalTitle = computed(() => {
   if (modal.value === "transactions") return transactionFilter.value === "deposit"
     ? "Deposit Records"
     : transactionFilter.value === "withdrawal" ? "Withdrawal Records" : "Transaction History";
-  if (modal.value === "game-records") return gameResultsMode.value === "profit-loss" ? "Profit And Loss" : "Betting Record";
   if (modal.value === "favorites") return "My Favorites";
   if (modal.value === "support") return "Help & Support";
   if (modal.value === "profile") return "Profile & Account";
@@ -1418,13 +1507,22 @@ watch(() => [route.path, signedIn.value] as const, ([, isSignedIn]) => {
   else promotions.value = [];
 });
 
-watch(() => [route.path, profileSection.value, signedIn.value] as const, ([path, section, isSignedIn]) => {
-  if (path === "/account" && section === "rewards" && isSignedIn) void loadReferralData();
-  else if (!isSignedIn) {
+watch(() => [route.path, signedIn.value] as const, ([path, isSignedIn]) => {
+  if (path === "/rewards" && isSignedIn) {
+    void loadReferralData();
+    void loadRewardsDashboard();
+  } else {
     referralRequestId += 1;
     referralData.value = null;
     referralLoading.value = false;
+    rewardsRequestId += 1;
+    rewardsDashboard.value = null;
+    rewardsLoading.value = false;
   }
+});
+
+watch(() => route.path, (path) => {
+  if (path === "/rewards") rewardsTab.value = "daily";
 });
 
 watch(() => [route.path, profileSection.value, signedIn.value] as const, ([path, section, isSignedIn]) => {
@@ -1483,6 +1581,9 @@ onMounted(async () => {
     .then((settings) => {
       if (settings.announcement) platformAnnouncement.value = settings.announcement;
       maintenanceMode.value = Boolean(settings.maintenanceMode);
+      if (typeof settings.jackpotAmount === "number" && Number.isFinite(settings.jackpotAmount)) {
+        jackpot.value = settings.jackpotAmount;
+      }
       googleClientId.value = settings.googleClientId || "";
     })
     .catch(() => {
@@ -1947,7 +2048,7 @@ async function navigateTo(path: string): Promise<void> {
   await router.push(path);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
-async function selectAccountSection(section: "profile" | "wallet" | "rewards"): Promise<void> {
+async function selectAccountSection(section: "profile" | "wallet"): Promise<void> {
   const query = section === "profile" ? {} : { section };
   await router.push({ path: "/account", query });
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2040,13 +2141,17 @@ function selectGameLobbyTab(tab: GameLobbyTab): void {
 function selectGameProvider(providerCode: string): void {
   selectedProvider.value = providerCode;
 }
-function providerInitials(providerName: string): string {
-  return providerName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join("");
+function gameProviderLogo(provider: GameProvider): string | undefined {
+  if (provider.logo) return provider.logo;
+  const providerName = `${provider.code} ${provider.name}`;
+  if (/\bspribe\b/i.test(providerName)) return spribeCategoryLogo;
+  if (/\bin[\s-]*out\b/i.test(providerName)) return inOutLogo;
+  if (/\bpg(?:\s*(?:soft|slot))?\b/i.test(providerName)) return pgSoftLogo;
+  return undefined;
+}
+function gameProviderLogoUsesDarkBackground(provider: GameProvider): boolean {
+  if (provider.logo) return false;
+  return /\bin[\s-]*out\b/i.test(`${provider.code} ${provider.name}`);
 }
 function homeSectionId(category: string): string {
   return `home-games-${category.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
@@ -2497,77 +2602,31 @@ async function loadWalletTransactions(): Promise<void> {
     transactionLoading.value = false;
   }
 }
-async function loadGameResults(): Promise<void> {
-  if (!signedIn.value) return;
-  gameResultsLoading.value = true;
-  gameResultsError.value = "";
-  try {
-    const data = await api("/api/wallet/game-results");
-    gameResults.value = Array.isArray(data.gameResults) ? data.gameResults as GameResult[] : [];
-  } catch (error) {
-    gameResults.value = [];
-    gameResultsError.value = error instanceof Error ? error.message : "Could not load game records.";
-  } finally {
-    gameResultsLoading.value = false;
-  }
-}
-async function openGameResults(mode: "records" | "profit-loss"): Promise<void> {
-  if (requireSignIn()) return;
-  gameResultsMode.value = mode;
-  modal.value = "game-records";
-  await loadGameResults();
-}
-function openSupportRequest(subject: string, message: string): void {
-  if (requireSignIn()) return;
-  supportSubject.value = subject;
-  supportMessage.value = message;
-  modal.value = "support";
-}
 function handleProfileShortcut(action: ProfileShortcutAction): void {
   switch (action) {
     case "wallet":
       void selectAccountSection("wallet");
       break;
-    case "bonuses":
-    case "vip":
+    case "promotions":
       navigateTo("/promotions");
       break;
-    case "bonus-code":
-      openSupportRequest("Bonus code help", "Please let me know whether a promotion code is active and how to check its eligibility or redemption terms.");
+    case "transactions":
+      void openTransactionHistory();
       break;
-    case "betting-record":
-      void openGameResults("records");
-      break;
-    case "profit-loss":
-      void openGameResults("profit-loss");
-      break;
-    case "deposit-record":
-      void openTransactionHistory("deposit");
-      break;
-    case "withdraw-record":
-      void openTransactionHistory("withdrawal");
-      break;
-    case "account-record":
-    case "my-accounts":
+    case "profile":
       openProfile();
       break;
-    case "deposit-problem":
-      openSupportRequest("Deposit help", "I need help with a deposit. I will provide the amount, date, and payment reference in my message.");
-      break;
-    case "withdraw-password":
-      openSupportRequest("Withdrawal security help", "Please explain the withdrawal security options available for my account.");
-      break;
-    case "security-center":
+    case "security":
       openKyc();
-      break;
-    case "invite-friends":
-      void selectAccountSection("rewards");
       break;
     case "notifications":
       void openInbox();
       break;
-    case "suggestion":
-      openSupportRequest("Suggestion", "I would like to share the following suggestion:");
+    case "favorites":
+      showFavorites();
+      break;
+    case "support":
+      modal.value = "support";
       break;
   }
 }
@@ -2601,6 +2660,94 @@ async function loadReferralData(): Promise<void> {
     if (requestId === referralRequestId) referralLoading.value = false;
   }
 }
+
+async function loadRewardsDashboard(): Promise<void> {
+  if (!signedIn.value || route.path !== "/rewards") return;
+  const requestId = ++rewardsRequestId;
+  const requestToken = token.value;
+  rewardsLoading.value = true;
+  rewardsError.value = "";
+  try {
+    const data = await api("/api/rewards");
+    if (requestId === rewardsRequestId && signedIn.value && token.value === requestToken) {
+      rewardsDashboard.value = data;
+    }
+  } catch (error) {
+    if (requestId === rewardsRequestId && token.value === requestToken) {
+      rewardsError.value = error instanceof Error ? error.message : "Could not load rewards";
+    }
+  } finally {
+    if (requestId === rewardsRequestId) rewardsLoading.value = false;
+  }
+}
+
+async function claimDailyReward(): Promise<void> {
+  if (!rewardsDashboard.value?.daily.claimable || dailyClaiming.value) return;
+  dailyClaiming.value = true;
+  dailyClaimError.value = "";
+  try {
+    const result = await api("/api/rewards/daily/claim", { method: "POST" });
+    balance.value = result.balance;
+    if (user.value) user.value.balance = result.balance;
+    notify(`${currencyLabel.value} ${formatAmount(result.amount)} daily reward credited`);
+    await loadRewardsDashboard();
+  } catch (error) {
+    dailyClaimError.value = error instanceof Error ? error.message : "Could not claim today's reward";
+    await loadRewardsDashboard();
+  } finally {
+    dailyClaiming.value = false;
+  }
+}
+
+async function redeemBonusCode(): Promise<void> {
+  const code = bonusCodePreview.value?.code;
+  if (!code || bonusCodeRedeeming.value) return;
+  bonusCodeRedeeming.value = true;
+  bonusCodeError.value = "";
+  bonusCodeMessage.value = "";
+  try {
+    const result = await api("/api/rewards/bonus-codes/redeem", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
+    balance.value = result.balance;
+    if (user.value) user.value.balance = result.balance;
+    bonusCodeInput.value = "";
+    bonusCodePreview.value = null;
+    bonusCodeMessage.value = `${currencyLabel.value} ${formatAmount(result.amount)} credited to your Main Wallet.`;
+    notify("Bonus code redeemed successfully");
+  } catch (error) {
+    bonusCodeError.value = error instanceof Error ? error.message : "Could not redeem this bonus code";
+  } finally {
+    bonusCodeRedeeming.value = false;
+  }
+}
+
+async function previewBonusCode(): Promise<void> {
+  const code = bonusCodeInput.value.trim().toUpperCase();
+  if (!code || bonusCodeChecking.value || bonusCodeRedeeming.value) return;
+  bonusCodeChecking.value = true;
+  bonusCodeError.value = "";
+  bonusCodeMessage.value = "";
+  bonusCodePreview.value = null;
+  try {
+    bonusCodePreview.value = await api("/api/rewards/bonus-codes/preview", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    });
+  } catch (error) {
+    bonusCodeError.value = error instanceof Error ? error.message : "Could not check this bonus code";
+  } finally {
+    bonusCodeChecking.value = false;
+  }
+}
+
+function clearBonusCodePreview(): void {
+  bonusCodePreview.value = null;
+  bonusCodeError.value = "";
+  bonusCodeMessage.value = "";
+}
+
 function referralLink(): string {
   return `${window.location.origin}/?ref=${encodeURIComponent(referralData.value?.code || "")}`;
 }
@@ -2798,9 +2945,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .category-arrow { display: grid; width: 24px; flex: 0 0 24px; place-items: center; padding: 0; border: 0; color: #8d9991; background: none; }
 .category-list { display: flex; flex: 1; justify-content: space-around; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 .category-list::-webkit-scrollbar { display: none; }
-.category { display: flex; min-width: 51px; flex: 1; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; padding: 0; border: 0; color: #707b73; background: none; font-size: 12px; }
-.category-icon { display: grid; height: 39px; place-items: center; color: #16994d; }
-.category-image { display: block; width: 38px; height: 38px; object-fit: contain; }
+.category { display: flex; min-width: 56px; flex: 1; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; padding: 0; border: 0; color: #707b73; background: none; font-size: 12px; }
+.category-icon { display: grid; width: 56px; height: 39px; place-items: center; color: #16994d; }
+.category-icon-brand { padding: 4px; border: 1px solid #edf1ed; border-radius: 8px; background: #fff; }
+.category-image { display: block; width: 100%; height: 100%; object-fit: contain; }
 .category:first-child .category-icon svg { fill: currentColor; stroke: #16994d; }
 .category-label { padding: 0 3px 5px; border-bottom: 2px solid transparent; white-space: nowrap; }
 .category.selected .category-label { border-color: #27a95c; color: #315940; font-weight: 700; }
@@ -3176,7 +3324,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .categories { min-height: 118px; padding-right: 18px; padding-left: 18px; }
   .category-list { justify-content: center; gap: clamp(12px, 2vw, 28px); }
   .category { max-width: 140px; min-width: 80px; }
-  .category-image { width: 50px; height: 50px; }
+  .category-icon { width: 56px; }
   .category-label { font-size: 13px; }
   .jackpot { max-height: 400px; }
   .page-home .game-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
@@ -3214,7 +3362,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .search-button svg { width: 21px; }
   .content { gap: 10px; padding-right: 9px; padding-left: 9px; }
   .categories { min-height: 82px; }
-  .category { min-width: 46px; font-size: 11px; }
+  .category { min-width: 56px; font-size: 11px; }
   .jackpot { border-radius: 0; box-shadow: none; }
   .jackpot-value { bottom: 24%; font-size: 12px; }
   .game-grid { gap: 8px; }
@@ -3291,7 +3439,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .game-provider-sidebar-title { margin: 0 0 2px; color: #63806b; font-size: 9px; font-weight: 850; text-align: center; text-transform: uppercase; letter-spacing: .06em; }
 .game-provider-option { display: flex; min-width: 0; min-height: 63px; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 6px 3px; border: 1px solid #d5e8d8; border-radius: 10px; color: #50765b; background: #edf6ed; font-size: 9px; font-weight: 700; line-height: 1.15; text-align: center; overflow-wrap: anywhere; transition: color .18s ease, background .18s ease; }
 .game-provider-option.active { border-color: #168446; color: #fff; background: #168446; }
-.game-provider-logo { display: grid; width: 29px; height: 29px; flex: 0 0 auto; place-items: center; border: 1px solid rgb(22 132 70 / 14%); border-radius: 9px; color: #197744; background: #fff; font-size: 10px; font-weight: 900; }
+.game-provider-logo { display: grid; width: 36px; height: 29px; flex: 0 0 auto; place-items: center; border: 1px solid rgb(22 132 70 / 14%); border-radius: 9px; color: #197744; background: #fff; font-size: 10px; font-weight: 900; }
+.game-provider-logo-dark { border-color: #22352a; background: #22352a; }
 .game-provider-logo img { width: 100%; height: 100%; border-radius: inherit; object-fit: contain; }
 .game-provider-option.active .game-provider-logo { border-color: rgb(255 255 255 / 25%); color: #fff; background: rgb(255 255 255 / 12%); }
 .game-provider-empty { margin: 4px 0; color: #63806b; font-size: 9px; line-height: 1.4; text-align: center; }
@@ -3416,10 +3565,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .wallet-file-drop > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wallet-file-drop input { display: none; }
 
-.profile-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 5px; border: 1px solid #e1ebe2; border-radius: 14px; background: white; }
+.profile-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 5px; border: 1px solid #e1ebe2; border-radius: 14px; background: white; }
 .profile-tabs button { display: flex; min-height: 40px; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 10px; color: #728078; background: transparent; font-size: 12px; font-weight: 750; }
 .profile-tabs button.active { color: white; background: #168548; box-shadow: 0 2px 6px rgb(22 133 72 / 15%); }
-@media (max-width: 380px) { .profile-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .wallet-workspace .wallet-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
 .transaction-panel .wallet-workspace-heading { align-items: flex-start; }
 .wallet-refresh { padding: 7px 12px; border: 1px solid #dde8df; border-radius: 10px; color: #2c8b52; background: #f4faf5; font-size: 12px; font-weight: 700; }
@@ -3441,6 +3589,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .transaction-status.pending { color: #8a6a17; background: #f8efcc; }
 
 /* ---------- Account (professional layout) ---------- */
+.account-hero-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(210px, .42fr); align-items: stretch; gap: 12px; }
 .account-hero { display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px solid #dfeae0; border-radius: 20px; background: white; }
 .account-hero .account-avatar { width: 68px; height: 68px; font-size: 27px; }
 .account-hero-identity { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
@@ -3462,6 +3611,58 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .account-profile-head { display: flex; align-items: center; gap: 10px; color: #2c8b52; }
 .account-profile-head strong { display: block; color: #22392c; font-size: 13.5px; }
 .account-profile-head small { color: #8a968e; font-size: 11px; }
+.account-picture-card { flex-direction: column; align-items: flex-start; justify-content: center; }
+.rewards-tabs { display: flex; overflow-x: auto; gap: 7px; padding: 5px; border: 1px solid #e1ebe2; border-radius: 15px; background: white; scrollbar-width: thin; }
+.rewards-tabs button { display: inline-flex; min-height: 40px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; padding: 0 13px; border: 0; border-radius: 10px; color: #6b7b70; background: transparent; font-size: 12px; font-weight: 750; white-space: nowrap; }
+.rewards-tabs button.active { color: white; background: #168548; box-shadow: 0 2px 6px rgb(22 133 72 / 15%); }
+.daily-rewards-section { display: grid; gap: 13px; }
+.daily-rewards-banner { min-height: 142px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; padding: 22px; border: 1px solid #d5e9d8; border-radius: 18px; background: linear-gradient(115deg, #f1faf3, #fff 62%, #e8f5eb); }
+.daily-rewards-banner .eyebrow { color: #528264; font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+.daily-rewards-banner h2 { margin: 0; color: #214b31; font-size: 22px; }
+.daily-rewards-banner p { margin: 0; color: #6f7e73; font-size: 13px; }
+.daily-checkin-card, .rewards-content-card { display: grid; gap: 15px; padding: 18px; border: 1px solid #dbe8dd; border-radius: 18px; background: white; box-shadow: 0 6px 20px rgb(31 72 43 / 4%); }
+.daily-checkin-heading { display: flex; min-width: 0; align-items: center; gap: 12px; }
+.daily-checkin-icon { display: grid; width: 52px; height: 52px; flex: 0 0 auto; place-items: center; border-radius: 15px; color: #187b43; background: #e7f4e9; }
+.daily-checkin-heading > div { min-width: 0; flex: 1; }
+.daily-checkin-heading h2, .rewards-content-heading h2 { margin: 0; color: #264b33; font-size: 17px; }
+.daily-checkin-heading p, .rewards-content-heading p { margin: 3px 0 0; color: #7a887e; font-size: 12px; line-height: 1.45; }
+.daily-streak-count { padding: 5px 10px; border: 1px solid #d7e9da; border-radius: 999px; color: #227745; background: #f2faf3; font-size: 13px; white-space: nowrap; }
+.daily-reward-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
+.daily-reward-day { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 6px; color: #88948b; }
+.daily-reward-day > span { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid #e0e9e1; border-radius: 50%; color: #68786d; background: #f8faf8; font-size: 12px; font-weight: 800; }
+.daily-reward-day.current > span { border: 2px solid #168548; color: #168548; background: #f0f9f2; box-shadow: 0 0 0 3px #e4f3e7; }
+.daily-reward-day.claimed > span { border-color: #168548; color: white; background: #168548; }
+.daily-reward-day small { overflow: hidden; max-width: 100%; color: #748278; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.daily-claim-button { min-height: 48px; border: 0; border-radius: 13px; color: white; background: linear-gradient(110deg, #168548, #29a45a); box-shadow: 0 4px 11px rgb(22 133 72 / 18%); font-size: 14px; font-weight: 800; }
+.daily-claim-button:disabled { color: #718076; background: #edf2ee; box-shadow: none; cursor: not-allowed; }
+.daily-reset-note { margin: -5px 0 0; color: #849087; font-size: 10px; text-align: center; }
+.rewards-content-heading { display: flex; align-items: center; gap: 11px; color: #27864e; }
+.rewards-content-heading > div { min-width: 0; }
+.rewards-offer-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.rewards-offer-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px; border: 1px solid #e1ebe2; border-radius: 14px; background: #fbfdfb; }
+.rewards-offer-card > strong { color: #294b36; font-size: 14px; }
+.rewards-offer-card p, .rewards-offer-card small { margin: 0; color: #77857b; font-size: 11px; line-height: 1.5; }
+.rewards-offer-card > span { color: #208048; font-size: 12px; font-weight: 750; }
+.rewards-offer-card .avatar-upload-button { margin-top: auto; }
+.cashback-unavailable-note { margin: 0; padding: 13px; border: 1px solid #dce9de; border-radius: 12px; color: #43664d; background: #f3faf4; font-size: 12px; line-height: 1.5; }
+.vip-tier-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 15px; border: 1px solid #dce9de; border-radius: 14px; background: #f7fbf7; }
+.vip-tier-badge { display: inline-flex; align-items: center; gap: 7px; color: #187b43; font-size: 18px; font-weight: 800; }
+.vip-tier-summary > div { display: flex; flex-direction: column; gap: 3px; text-align: right; }
+.vip-tier-summary small { color: #7b887f; font-size: 10px; }
+.vip-tier-summary strong { color: #264b33; font-size: 15px; }
+.vip-progress-label { display: flex; justify-content: space-between; color: #6f7e73; font-size: 10px; font-weight: 750; }
+.vip-progress-track { overflow: hidden; height: 9px; border-radius: 99px; background: #e8efe9; }
+.vip-progress-track > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #168548, #61b875); transition: width .25s ease; }
+.bonus-code-redeem-form { display: grid; gap: 7px; }
+.bonus-code-redeem-form > label { color: #4a6150; font-size: 12px; font-weight: 700; }
+.bonus-code-redeem-form > div { display: flex; gap: 8px; }
+.bonus-code-redeem-form input { min-width: 0; min-height: 44px; flex: 1; padding: 9px 12px; border: 1px solid #d7e4d9; border-radius: 11px; color: #284b35; background: white; font-size: 13px; }
+.bonus-code-redeem-form .primary-button { flex: 0 0 auto; }
+.bonus-code-preview { display: grid; gap: 9px; padding: 13px; border: 1px solid #d4e7d8; border-radius: 13px; background: #f5fbf6; }
+.bonus-code-preview > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.bonus-code-preview > div strong { color: #245537; font-size: 14px; letter-spacing: .04em; }
+.bonus-code-preview > div span { color: #1d7a40; font-size: 12px; font-weight: 750; }
+.bonus-code-preview p, .bonus-code-preview small { margin: 0; color: #718076; font-size: 11px; line-height: 1.5; }
 .referral-card { display: grid; align-items: stretch; justify-content: stretch; gap: 12px; }
 .referral-card-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .referral-reward-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: #748077; font-size: 11px; }
@@ -3471,6 +3672,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .referral-code-box strong { color: #185e34; font-size: 17px; letter-spacing: .08em; }
 .referral-review-note, .referral-feedback { margin: 0; color: #718076; font-size: 11px; line-height: 1.5; }
 .referral-feedback.error { color: #b34646; }
+.referral-feedback.success { color: #187b43; }
 .referral-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .referral-card-actions .avatar-upload-button { min-height: 38px; margin: 0; }
 .referral-card-actions button:disabled { cursor: not-allowed; opacity: .55; }
@@ -3499,7 +3701,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .transaction-filter { display: flex; gap: 7px; padding-bottom: 4px; }
 .transaction-filter button { min-height: 34px; padding: 6px 12px; border: 1px solid #e3ebe4; border-radius: 999px; color: #607066; background: white; font-size: 12px; font-weight: 700; }
 .transaction-filter button.active { border-color: #c4e3cc; color: #16763f; background: #eaf6ed; }
-.game-results-note { margin: 0; padding: 11px 12px; border: 1px solid #f0dfc0; border-radius: 12px; color: #795b27; background: #fffaf0; font-size: 12px; line-height: 1.5; }
 .account-page .account-action-grid { gap: 8px; }
 .account-page .account-action-grid > button { min-height: 62px; padding: 12px 14px; border-radius: 15px; background: white; transition: border-color .16s ease, background .16s ease; }
 .account-page .account-action-grid > button:hover { border-color: #bfdcc6; background: #fafdfa; }
@@ -3524,11 +3725,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .wallet-kyc-gate > div { flex-basis: calc(100% - 38px); }
   .wallet-kyc-button, .wallet-kyc-pending { margin-left: 34px; }
 }
+@media (max-width: 640px) {
+  .account-hero-row { grid-template-columns: minmax(0, 1fr); }
+  .account-picture-card { flex-direction: row; align-items: center; justify-content: space-between; }
+}
 @media (max-width: 420px) {
   .profile-shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
   .profile-shortcut { min-height: 86px; flex-direction: row; justify-content: flex-start; padding: 11px; text-align: left; }
   .profile-shortcut-icon { width: 39px; height: 39px; flex: 0 0 auto; }
   .profile-shortcut strong { text-align: left; }
+  .daily-checkin-card, .rewards-content-card { padding: 13px; }
+  .daily-reward-days { gap: 3px; }
+  .daily-reward-day > span { width: 31px; height: 31px; }
+  .daily-reward-day small { font-size: 8px; }
+  .bonus-code-redeem-form > div { flex-direction: column; }
 }
 @media (min-width: 760px) {
   .wallet-page .page-section, .account-page .page-section { gap: 16px;   }
@@ -3536,5 +3746,384 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .wallet-balance-main { padding: 26px; }
   .wallet-balance-split { border-left: 1px solid #e8efe9; }
   .account-page .account-action-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* Shared storefront polish */
+.topbar {
+  border-bottom: 1px solid rgb(255 255 255 / 14%);
+  background: linear-gradient(110deg, #11863f, #159447 58%, #1ba354);
+  box-shadow: 0 8px 22px rgb(19 99 49 / 16%);
+}
+.balance-button {
+  box-shadow: 0 2px 8px rgb(7 71 31 / 12%);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.balance-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 12px rgb(7 71 31 / 18%);
+}
+.desktop-nav {
+  border-bottom-color: #e2ebe4;
+  box-shadow: 0 5px 16px rgb(34 91 51 / 7%);
+}
+.desktop-nav button {
+  transition: color .18s ease, background .18s ease, transform .18s ease;
+}
+.desktop-nav button:hover:not(.active) {
+  color: #168446;
+  background: #f2f8f3;
+}
+.content {
+  gap: clamp(13px, 2vw, 20px);
+}
+.announcement {
+  min-height: 52px;
+  border: 1px solid #dcecdf;
+  background: linear-gradient(105deg, #eaf6ec, #f3faf4);
+}
+.inbox-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  box-shadow: 0 3px 8px rgb(21 132 66 / 18%);
+  transition: transform .18s ease, background .18s ease;
+}
+.inbox-button:hover {
+  transform: translateY(-1px);
+  background: #128c48;
+}
+.categories {
+  border-color: #e5ede6;
+  box-shadow: 0 7px 22px rgb(27 88 47 / 6%);
+}
+.category {
+  min-height: 64px;
+  border-radius: 13px;
+  transition: color .18s ease, background .18s ease;
+}
+.category:hover,
+.category.selected {
+  background: #f1f8f2;
+}
+.category.selected .category-label {
+  border-color: transparent;
+  color: #168446;
+}
+.jackpot {
+  border: 1px solid #e4eee5;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 7px 22px rgb(27 88 47 / 6%);
+}
+.game-category-section {
+  border-color: #e5ede6;
+  box-shadow: 0 8px 24px rgb(31 72 43 / 5%);
+  transition: box-shadow .18s ease, border-color .18s ease;
+}
+.page-home .game-category-section > .empty-state {
+  margin: 0;
+  padding: 17px 12px;
+  border: 1px dashed #dce8de;
+  border-radius: 13px;
+  background: #f8fbf8;
+  line-height: 1.5;
+}
+.home-game-card {
+  border-color: rgb(20 70 35 / 11%);
+  box-shadow: 0 6px 16px rgb(28 69 39 / 13%);
+}
+.home-game-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 22px rgb(28 69 39 / 20%);
+}
+.page-heading {
+  padding-top: 16px;
+}
+.page-heading .eyebrow {
+  display: inline-block;
+  margin-bottom: 2px;
+}
+.bottom-nav {
+  min-height: 82px;
+  align-items: center;
+  padding-top: 8px;
+  border-color: #e8eee9;
+  box-shadow: 0 -7px 24px rgb(32 79 46 / 9%);
+}
+.bottom-nav button {
+  min-height: 54px;
+  flex: 1;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  transition: color .18s ease, background .18s ease, transform .18s ease;
+}
+.bottom-nav button.active-nav {
+  color: #168446;
+  background: #edf7ef;
+}
+.bottom-nav button:active {
+  transform: scale(.96);
+}
+.page-section {
+  gap: clamp(14px, 2vw, 19px);
+}
+@media (min-width: 760px) {
+  .page-home .game-category-section:hover {
+    border-color: #d7e8da;
+    box-shadow: 0 10px 28px rgb(31 72 43 / 8%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .balance-button,
+  .inbox-button,
+  .desktop-nav button,
+  .category,
+  .game-category-section,
+  .home-game-card,
+  .bottom-nav button {
+    transition: none;
+  }
+}
+
+/* Consistent layouts and controls across account, wallet, rewards, and offers */
+.page-section {
+  width: 100%;
+  max-width: 1080px;
+  align-self: center;
+  gap: clamp(16px, 2.2vw, 22px);
+  padding: 8px 0 28px;
+}
+.page-heading {
+  padding: 18px 2px 5px;
+}
+.page-heading h1 {
+  font-size: clamp(28px, 5vw, 40px);
+  letter-spacing: -.045em;
+  line-height: 1.08;
+}
+.page-heading p {
+  max-width: 62ch;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.page-section > .empty-state {
+  margin: 0;
+  padding: 28px 18px;
+  border: 1px solid #e4ece5;
+  border-radius: 16px;
+  color: #64736a;
+  background: #fff;
+  box-shadow: 0 5px 16px rgb(31 72 43 / 4%);
+  line-height: 1.55;
+}
+.profile-tabs,
+.rewards-tabs {
+  border-color: #e2ebe3;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgb(31 72 43 / 4%);
+}
+.profile-tabs button,
+.rewards-tabs button {
+  min-height: 43px;
+  border-radius: 11px;
+  transition: color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.profile-tabs button:not(.active):hover,
+.rewards-tabs button:not(.active):hover {
+  color: #168446;
+  background: #f2f8f3;
+}
+.profile-tabs button.active,
+.rewards-tabs button.active {
+  background: linear-gradient(110deg, #168548, #229b53);
+  box-shadow: 0 3px 9px rgb(22 133 72 / 18%);
+}
+.account-hero,
+.account-profile-card,
+.account-balance-card,
+.wallet-balance-card,
+.wallet-workspace,
+.daily-checkin-card,
+.rewards-content-card {
+  border-color: #e2ebe3;
+  box-shadow: 0 6px 20px rgb(31 72 43 / 5%);
+}
+.account-hero {
+  min-height: 126px;
+  padding: clamp(16px, 2.4vw, 23px);
+}
+.account-hero .account-avatar {
+  box-shadow: 0 0 0 4px #eff7f0;
+}
+.account-balance-card {
+  min-height: 94px;
+  border-radius: 18px;
+}
+.account-balance-card > strong {
+  font-size: clamp(18px, 3vw, 22px);
+  font-variant-numeric: tabular-nums;
+}
+.account-group {
+  gap: 11px;
+}
+.account-group-title {
+  margin-left: 1px;
+  color: #526d5b;
+  font-size: 12px;
+  letter-spacing: .06em;
+}
+.profile-shortcut {
+  border-color: #e3ebe4;
+  background: #fff;
+  box-shadow: 0 4px 14px rgb(31 72 43 / 4%);
+}
+.profile-shortcut:hover {
+  transform: translateY(-2px);
+  border-color: #c7dfcc;
+  box-shadow: 0 8px 20px rgb(31 72 43 / 8%);
+}
+.account-page .account-action-grid > button {
+  min-height: 68px;
+  border-color: #e3ebe4;
+  box-shadow: 0 3px 12px rgb(31 72 43 / 3%);
+}
+.account-page .account-action-grid > button:hover {
+  transform: translateY(-1px);
+  border-color: #c7dfcc;
+  background: #f9fcf9;
+  box-shadow: 0 6px 16px rgb(31 72 43 / 6%);
+}
+.wallet-balance-card {
+  border-radius: 21px;
+}
+.wallet-balance-main {
+  background: linear-gradient(120deg, #147d40, #159447 58%, #1da254);
+}
+.wallet-balance-split {
+  background: #fff;
+}
+.wallet-transfer-button,
+.wallet-copy-button,
+.wallet-refresh,
+.wallet-kyc-button,
+.avatar-upload-button {
+  transition: border-color .18s ease, color .18s ease, background .18s ease, transform .18s ease;
+}
+.wallet-transfer-button:hover:not(:disabled),
+.wallet-copy-button:hover,
+.wallet-refresh:hover:not(:disabled),
+.wallet-kyc-button:hover,
+.avatar-upload-button:hover {
+  transform: translateY(-1px);
+  border-color: #a9d2b3;
+  background: #edf7ef;
+}
+.wallet-workspace {
+  gap: 15px;
+  padding: clamp(15px, 2.2vw, 22px);
+  border-radius: 20px;
+}
+.wallet-payment-card,
+.transaction-item,
+.rewards-offer-card {
+  border-color: #e4ece5;
+  background: #fff;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.transaction-item:hover,
+.rewards-offer-card:hover {
+  border-color: #cbded0;
+  box-shadow: 0 5px 14px rgb(31 72 43 / 5%);
+}
+.wallet-input-shell,
+.bonus-code-redeem-form input,
+.auth-form input,
+.auth-form select,
+.kyc-form select,
+.kyc-form input {
+  border-color: #dce7de;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.wallet-input-shell:focus-within,
+.bonus-code-redeem-form input:focus,
+.auth-form input:focus,
+.auth-form select:focus,
+.kyc-form select:focus,
+.kyc-form input:focus {
+  border-color: #55ad70;
+  box-shadow: 0 0 0 3px rgb(39 169 92 / 11%);
+}
+.daily-rewards-banner {
+  border-color: #d7e9da;
+  background: linear-gradient(115deg, #eaf6ed, #fff 58%, #f0f8f1);
+}
+.daily-checkin-card,
+.rewards-content-card {
+  border-radius: 20px;
+}
+.daily-claim-button,
+.primary-button,
+.wallet-transfer-button {
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+}
+.daily-claim-button:hover:not(:disabled),
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgb(22 133 72 / 19%);
+}
+.promotion-banner,
+.promotion-complete-link {
+  border-radius: 21px;
+}
+.promotion-full-details {
+  border-color: #e2ebe3;
+  border-radius: 16px;
+}
+.responsible-play-note {
+  border-radius: 16px;
+  line-height: 1.55;
+}
+.signed-out-card {
+  border-color: #e2ebe3;
+  box-shadow: 0 6px 20px rgb(31 72 43 / 5%);
+}
+@media (max-width: 640px) {
+  .page-section {
+    padding-bottom: 20px;
+  }
+  .account-hero-row {
+    gap: 10px;
+  }
+  .account-hero {
+    min-height: 112px;
+  }
+  .account-profile-card {
+    padding: 13px;
+  }
+  .wallet-workspace-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .wallet-workspace .wallet-tabs {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-tabs button,
+  .rewards-tabs button,
+  .wallet-transfer-button,
+  .wallet-copy-button,
+  .wallet-refresh,
+  .wallet-kyc-button,
+  .avatar-upload-button,
+  .transaction-item,
+  .rewards-offer-card,
+  .daily-claim-button,
+  .primary-button {
+    transition: none;
+  }
 }
 </style>
