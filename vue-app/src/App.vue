@@ -91,8 +91,8 @@
       <section class="announcement" aria-label="Latest announcement">
         <Volume2 class="announcement-volume" :size="20" :stroke-width="2.6" />
         <p>{{ platformAnnouncement }}</p>
-        <button class="inbox-button" aria-label="Open inbox" @click="openInbox">
-          <Mail :size="23" />
+        <button class="inbox-button" :aria-label="unreadCount ? `Open notifications, ${unreadCount} unread` : 'Open notifications'" @click="openInbox">
+          <Bell :size="23" />
           <span v-if="unreadCount > 0" class="inbox-badge">{{ unreadCount > 99 ? "99+" : unreadCount }}</span>
         </button>
       </section>
@@ -425,10 +425,7 @@
         </div>
       </section>
 
-      <section v-else-if="currentPage === 'promotions'" class="page-section">
-        <div class="page-heading page-heading-simple">
-          <h1>Promotions</h1>
-        </div>
+      <section v-else-if="currentPage === 'promotions'" class="page-section promotions-page">
         <div v-if="!signedIn" class="signed-out-card">
           <Gift :size="30" />
           <h2>Sign in to view promotions</h2>
@@ -437,37 +434,74 @@
         </div>
         <p v-else-if="promotionsLoading" class="empty-state">Loading offers...</p>
         <p v-else-if="promotionsError" class="empty-state">{{ promotionsError }}</p>
-        <p v-else-if="activePromotions.length === 0" class="empty-state">There are no active offers right now.</p>
-        <div v-else class="promotion-grid">
-          <article v-for="(promotion, index) in activePromotions" :key="promotion.id" class="promotion-banner" :class="{ 'promotion-full-creative': promotion.bannerIncludesText && promotion.bannerUrl }">
-            <template v-if="promotion.bannerIncludesText && promotion.bannerUrl">
-              <button class="promotion-complete-link" :aria-label="`Ask about ${promotion.title}`" @click="askAboutPromotion(promotion)">
-                <img class="promotion-banner-complete" :src="promotion.bannerUrl" alt="" :loading="index === 0 ? 'eager' : 'lazy'" decoding="async" />
-              </button>
-              <div class="promotion-full-details">
-                <h2>{{ promotion.title }}</h2>
-                <p v-if="promotion.description">{{ promotion.description }}</p>
-                <p v-if="promotion.terms" class="promotion-terms">{{ promotion.terms }}</p>
-                <button class="primary-button" @click="askAboutPromotion(promotion)">Ask about this offer</button>
-              </div>
-            </template>
-            <template v-else>
-              <img v-if="promotion.bannerUrl" class="promotion-banner-art" :src="promotion.bannerUrl" alt="" :loading="index === 0 ? 'eager' : 'lazy'" decoding="async" />
-              <div class="promotion-banner-copy">
-                <span class="promotion-number">OFFER {{ String(index + 1).padStart(2, "0") }}</span>
-                <span v-if="promotion.reward" class="promotion-value">{{ promotion.reward }}</span>
-                <h2>{{ promotion.title }}</h2>
-                <p v-if="promotion.description">{{ promotion.description }}</p>
-                <p v-if="promotion.terms" class="promotion-terms">{{ promotion.terms }}</p>
-                <button class="primary-button" @click="askAboutPromotion(promotion)">Ask about this offer</button>
-              </div>
-            </template>
+        <template v-else>
+          <header class="promotions-intro-card">
+            <div class="promotions-intro-copy">
+              <h1>Promotions</h1>
+            </div>
+          </header>
+
+          <article v-if="activePromotions[0]" class="promotion-feature-card">
+            <span class="promotion-feature-icon"><Gift :size="20" /></span>
+            <div class="promotion-feature-copy">
+              <span>FEATURED OFFER</span>
+              <strong>{{ activePromotions[0].title }}</strong>
+              <small>{{ activePromotions[0].description || activePromotions[0].reward || "Review the offer terms for details." }}</small>
+            </div>
+            <button type="button" class="promotion-feature-action" @click="openPromotionAction(activePromotions[0])">
+              {{ promotionMentionsDeposit(activePromotions[0]) ? "Deposit now" : "Ask about offer" }}
+              <ChevronRight :size="16" />
+            </button>
           </article>
-        </div>
-        <aside class="responsible-play-note">
-          <strong>Responsible play</strong>
-          <p>Play responsibly: set limits and never gamble with money you cannot afford to lose. Offers are subject to the stated terms; contact support for eligibility and do not assume any bonus is credited automatically.</p>
-        </aside>
+
+          <nav class="promotion-filter-tabs" aria-label="Filter promotions">
+            <button type="button" :class="{ active: promotionFilter === 'all' }" :aria-pressed="promotionFilter === 'all'" @click="promotionFilter = 'all'">
+              All offers <span>{{ activePromotions.length }}</span>
+            </button>
+            <button type="button" :class="{ active: promotionFilter === 'deposit' }" :aria-pressed="promotionFilter === 'deposit'" @click="promotionFilter = 'deposit'">
+              Deposit offers <span>{{ depositPromotions.length }}</span>
+            </button>
+            <button type="button" :class="{ active: promotionFilter === 'other' }" :aria-pressed="promotionFilter === 'other'" @click="promotionFilter = 'other'">
+              Other offers <span>{{ otherPromotions.length }}</span>
+            </button>
+          </nav>
+
+          <div v-if="visiblePromotions.length" class="promotion-grid">
+            <article v-for="(promotion, index) in visiblePromotions" :key="promotion.id" class="promotion-banner" :class="{ 'promotion-full-creative': promotion.bannerIncludesText && promotion.bannerUrl }">
+              <template v-if="promotion.bannerIncludesText && promotion.bannerUrl">
+                <button class="promotion-complete-link" :aria-label="`Ask about ${promotion.title}`" @click="askAboutPromotion(promotion)">
+                  <img class="promotion-banner-complete" :src="promotion.bannerUrl" alt="" :loading="index === 0 ? 'eager' : 'lazy'" decoding="async" />
+                </button>
+                <div class="promotion-full-details">
+                  <h2>{{ promotion.title }}</h2>
+                  <p v-if="promotion.description">{{ promotion.description }}</p>
+                  <p v-if="promotion.terms" class="promotion-terms">{{ promotion.terms }}</p>
+                  <button class="primary-button" @click="askAboutPromotion(promotion)">Ask about this offer</button>
+                </div>
+              </template>
+              <template v-else>
+                <img v-if="promotion.bannerUrl" class="promotion-banner-art" :src="promotion.bannerUrl" alt="" :loading="index === 0 ? 'eager' : 'lazy'" decoding="async" />
+                <div class="promotion-banner-copy">
+                  <span class="promotion-number">ACTIVE OFFER {{ String(index + 1).padStart(2, "0") }}</span>
+                  <span v-if="promotion.reward" class="promotion-value">{{ promotion.reward }}</span>
+                  <h2>{{ promotion.title }}</h2>
+                  <p v-if="promotion.description">{{ promotion.description }}</p>
+                  <p v-if="promotion.terms" class="promotion-terms">{{ promotion.terms }}</p>
+                  <button class="primary-button" @click="askAboutPromotion(promotion)">Ask about this offer</button>
+                </div>
+              </template>
+            </article>
+          </div>
+          <p v-else-if="activePromotions.length === 0" class="empty-state">There are no active offers right now.</p>
+          <p v-else class="empty-state">There are no {{ promotionFilter === "deposit" ? "deposit" : "other" }} offers right now.</p>
+
+          <button type="button" class="promotion-rewards-link" @click="navigateTo('/rewards')">
+            <span class="promotion-rewards-icon"><BadgeCheck :size="20" /></span>
+            <span><strong>VIP &amp; daily rewards</strong><small>Check your tier, daily streak, and rewards</small></span>
+            <ChevronRight :size="19" />
+          </button>
+
+        </template>
       </section>
 
       <section v-else-if="currentPage === 'wallet' || (currentPage === 'account' && profileSection === 'wallet')" class="page-section wallet-page">
@@ -476,8 +510,8 @@
           <p>Track your balance, fund your game wallet, and manage deposit and withdrawal requests.</p>
         </div>
         <nav v-if="walletRequestType === 'withdrawal' || !signedIn" class="profile-tabs" aria-label="Account sections" role="tablist">
-          <button type="button" role="tab" :aria-selected="profileSection === 'profile'" @click="selectAccountSection('profile')"><UserRound :size="16" />Profile</button>
-          <button type="button" role="tab" :aria-selected="profileSection === 'wallet'" class="active" @click="selectAccountSection('wallet')"><Wallet :size="16" />Wallet</button>
+          <button type="button" role="tab" :aria-selected="walletRequestType === 'withdrawal'" :class="{ active: walletRequestType === 'withdrawal' }" @click="selectAccountSection('withdrawal')">Withdraw</button>
+          <button type="button" role="tab" :aria-selected="walletRequestType === 'deposit'" :class="{ active: walletRequestType === 'deposit' }" @click="selectAccountSection('wallet')"><Wallet :size="16" />Wallet</button>
         </nav>
         <div v-if="!signedIn" class="signed-out-card">
           <Wallet :size="30" />
@@ -486,7 +520,7 @@
           <button class="primary-button" @click="showAuth">Sign in</button>
         </div>
         <template v-else>
-          <section v-if="walletRequestType === 'withdrawal'" class="wallet-balance-card" aria-label="Wallet balances">
+          <section class="wallet-balance-card" aria-label="Wallet balances">
             <div class="wallet-balance-main">
               <span class="wallet-balance-label">Main wallet</span>
               <strong class="wallet-balance-value">{{ currencyLabel }} {{ formatAmount(balance) }}</strong>
@@ -688,11 +722,11 @@
       </section>
 
       <section v-else-if="(currentPage === 'account' && profileSection !== 'wallet') || currentPage === 'rewards'" class="page-section account-page">
-        <div class="page-heading page-heading-simple">
-          <h1>{{ currentPage === "rewards" ? "Rewards" : "Account" }}</h1>
+        <div v-if="currentPage === 'rewards'" class="page-heading page-heading-simple">
+          <h1>Rewards</h1>
         </div>
-        <nav v-if="currentPage === 'account'" class="profile-tabs" aria-label="Account sections" role="tablist">
-          <button type="button" role="tab" :aria-selected="profileSection === 'profile'" :class="{ active: profileSection === 'profile' }" @click="selectAccountSection('profile')"><UserRound :size="16" />Profile</button>
+        <nav v-if="currentPage === 'account' && !signedIn" class="profile-tabs" aria-label="Account sections" role="tablist">
+          <button type="button" role="tab" aria-selected="false" @click="selectAccountSection('withdrawal')"><ArrowDownLeft :size="16" />Withdraw</button>
           <button type="button" role="tab" aria-selected="false" @click="selectAccountSection('wallet')"><Wallet :size="16" />Wallet</button>
         </nav>
         <nav v-if="currentPage === 'rewards'" class="rewards-tabs" aria-label="Reward categories" role="tablist">
@@ -848,6 +882,11 @@
             <strong>{{ currencyLabel }} {{ formatAmount(balance) }}</strong>
           </section>
 
+          <nav v-if="currentPage === 'account'" class="profile-tabs" aria-label="Wallet actions">
+            <button type="button" @click="selectAccountSection('withdrawal')">Withdraw</button>
+            <button type="button" @click="selectAccountSection('wallet')"><Wallet :size="16" />Wallet</button>
+          </nav>
+
           <section class="profile-shortcuts" aria-label="Account shortcuts">
             <h2 class="account-group-title">Quick access</h2>
             <div class="profile-shortcut-grid">
@@ -883,9 +922,10 @@
       @navigate="navigateTo"
     />
 
-    <div v-if="modal" class="modal-backdrop" @click="modal = null">
-      <section class="modal-sheet" role="dialog" aria-modal="true" :aria-label="modalTitle" @click.stop>
+    <div v-if="modal" class="modal-backdrop" :class="{ 'notification-backdrop': modal === 'inbox', 'daily-checkin-backdrop': modal === 'daily-checkin' }" @click="modal = null">
+      <section class="modal-sheet" :class="{ 'notification-dialog': modal === 'inbox', 'daily-checkin-dialog': modal === 'daily-checkin' }" role="dialog" aria-modal="true" :aria-label="modalTitle" @click.stop>
         <div class="modal-heading">
+          <span v-if="modal === 'inbox'" class="notification-heading-icon"><Bell :size="19" /></span>
           <h2>{{ modalTitle }}</h2>
           <button class="close-button" aria-label="Close dialog" @click="modal = null"><X :size="22" /></button>
         </div>
@@ -909,6 +949,39 @@
           </button>
           </template>
         </form>
+
+        <div v-else-if="modal === 'daily-checkin' && rewardsDashboard" class="daily-checkin-popup">
+          <div class="daily-checkin-popup-days" aria-label="Seven day check-in rewards">
+            <button
+              v-for="day in dailyCheckinDays"
+              :key="day.day"
+              type="button"
+              class="daily-checkin-tile"
+              :class="{ current: day.current, completed: day.completed, locked: day.locked }"
+              :disabled="!day.current || !rewardsDashboard.daily.claimable || dailyClaiming"
+              :aria-label="`Day ${day.day}: ${currencyLabel} ${formatAmount(day.reward)}${day.completed ? ', claimed' : day.locked ? ', locked' : ', ready to claim'}`"
+              @click="claimDailyReward"
+            >
+              <span class="daily-checkin-day-label">DAY {{ day.day }}</span>
+              <span class="daily-chest" aria-hidden="true">
+                <img :src="dailyRewardChest" alt="" />
+                <Lock v-if="day.locked" class="daily-chest-locked-mark" :size="12" />
+                <Check v-else-if="day.completed" class="daily-chest-completed-mark" :size="12" />
+              </span>
+              <span class="daily-checkin-amount">{{ currencyLabel }} {{ formatAmount(day.reward) }}</span>
+            </button>
+          </div>
+          <button
+            type="button"
+            class="daily-checkin-claim-button"
+            :disabled="!rewardsDashboard.daily.claimable || dailyClaiming"
+            @click="claimDailyReward"
+          >
+            {{ dailyClaiming ? "Claiming…" : rewardsDashboard.daily.claimedToday ? "Claimed today" : `Claim Day ${rewardsDashboard.daily.claimDay}` }}
+            <span v-if="rewardsDashboard.daily.claimable">{{ currencyLabel }} {{ formatAmount(rewardsDashboard.daily.claimAmount) }}</span>
+          </button>
+          <p v-if="dailyClaimError" class="daily-checkin-error" role="alert">{{ dailyClaimError }}</p>
+        </div>
 
         <form v-else-if="modal === 'auth'" class="modal-content auth-form" @submit.prevent="submitAuth">
           <div class="wallet-tabs">
@@ -943,7 +1016,7 @@
           <li class="menu-section-label">Discover</li>
           <li><button @click="showFavorites"><Star :size="20" />My favorites</button></li>
           <li><button @click="navigateTo('/promotions')"><Gift :size="20" />Promotions</button></li>
-          <li><button @click="openInbox"><Mail :size="20" />Inbox</button></li>
+          <li><button @click="openInbox"><Bell :size="20" />Notifications</button></li>
           <li class="menu-section-label">Game categories</li>
           <li v-for="category in categories" :key="category">
             <button @click="selectCategory(category); navigateTo('/games')"><Flame :size="20" />{{ category }}</button>
@@ -1100,18 +1173,28 @@
         </form>
 
         <div v-else-if="modal === 'inbox'" class="message-list">
-          <p v-if="inboxLoading" class="empty-state">Loading inbox...</p>
+          <div class="notification-summary">
+            <span class="notification-summary-icon"><Bell :size="18" /></span>
+            <span><strong>Account notifications</strong><small>Updates about your account and wallet</small></span>
+            <b>{{ inboxMessages.length }}</b>
+          </div>
+          <p v-if="inboxLoading" class="empty-state">Loading notifications...</p>
           <p v-else-if="inboxError" class="empty-state" role="alert">{{ inboxError }}</p>
-          <p v-else-if="inboxMessages.length === 0" class="empty-state">No account messages yet.</p>
+          <p v-else-if="inboxMessages.length === 0" class="notification-empty">
+            <span><Bell :size="21" /></span>
+            <strong>You’re all caught up</strong>
+            <small>New account and wallet updates will appear here.</small>
+          </p>
           <article
             v-for="message in inboxMessages"
             :key="message.id"
             class="inbox-message"
             :class="{ unread: !message.read, [`inbox-${message.type}`]: true }"
           >
+            <span class="notification-item-icon"><Bell :size="17" /></span>
             <div class="inbox-message-heading">
-              <strong>{{ message.title }}</strong>
-              <small>{{ formatDate(message.createdAt) }}</small>
+              <strong>{{ message.title }}<i v-if="!message.read" class="notification-unread-dot" aria-label="Unread"></i></strong>
+              <time>{{ formatDate(message.createdAt) }}</time>
             </div>
             <p>{{ message.message }}</p>
           </article>
@@ -1131,14 +1214,15 @@ import PublicHeader from "./components/PublicHeader.vue";
 import BottomNav from "./components/BottomNav.vue";
 import BonusBanner from "./components/BonusBanner.vue";
 import {
-  ArrowDownLeft, ArrowUp, ArrowUpRight, BadgeCheck, CalendarDays, Check, ChevronLeft,
+  ArrowDownLeft, ArrowUp, ArrowUpRight, BadgeCheck, Bell, CalendarDays, Check, ChevronLeft,
   ChevronRight, CircleAlert, CircleCheck, Clock3, Copy, Fish, Flame, Gamepad2, Gift,
-  Landmark, LifeBuoy, LogOut, Mail, Search, ShieldCheck, Smartphone, Spade, Star,
+  Landmark, LifeBuoy, Lock, LogOut, Mail, Search, ShieldCheck, Smartphone, Spade, Star,
   UserRound, Users, Volume2, Wallet, X,
 } from "lucide-vue-next";
 import fish from "./assets/g-fish.webp";
 import slot from "./assets/g-slot.webp";
 import b9Logo from "./assets/b9-logo.webp";
+import dailyRewardChest from "./assets/daily-reward-chest.png";
 import jackpotBanner from "./assets/jackpot-banner.webp";
 import popularCategoryLogo from "./assets/category-icons/01_popular.png";
 import pgSlotCategoryLogo from "./assets/category-icons/02_pg_slot.png";
@@ -1150,7 +1234,7 @@ import inOutLogo from "./assets/provider-logos/inout.svg";
 import phonePeLogo from "./assets/provider-logos/phonepe.png";
 import paytmLogo from "./assets/provider-logos/paytm.png";
 
-type Modal = "menu" | "promo" | "profile" | "profile-actions" | "inbox" | "auth" | "kyc" | "transactions" | "favorites" | "support" | "game-funding" | null;
+type Modal = "menu" | "promo" | "profile" | "profile-actions" | "inbox" | "daily-checkin" | "auth" | "kyc" | "transactions" | "favorites" | "support" | "game-funding" | null;
 type AuthUser = { id: string; username: string; phone: string; email: string; country: string; kycStatus: string; role: "user" | "agent" | "admin"; balance: number; status: string; createdAt: string; lastLoginAt: string | null; googlePictureUrl?: string; referralCode?: string };
 type WalletTransaction = { id: string; type: "deposit" | "withdrawal"; amount: number; status: string; createdAt: string; paymentMethod?: string; paymentReference?: string; paymentNote?: string };
 type ProfileShortcutAction = "wallet" | "promotions" | "transactions" | "profile" | "security" | "notifications" | "favorites" | "support";
@@ -1338,6 +1422,7 @@ const rewardsError = ref("");
 const dailyClaimError = ref("");
 const rewardsTab = ref<RewardsTab>("daily");
 const dailyClaiming = ref(false);
+const dailyCheckinLoading = ref(false);
 const bonusCodeInput = ref("");
 const bonusCodePreview = ref<{ code: string; amount: number; terms: string; expiresAt: string } | null>(null);
 const bonusCodeChecking = ref(false);
@@ -1380,7 +1465,7 @@ const profileShortcuts: { title: string; icon: typeof Wallet; action: ProfileSho
   { title: "Transactions", icon: ArrowUpRight, action: "transactions" },
   { title: "Profile details", icon: UserRound, action: "profile" },
   { title: "Identity verification", icon: ShieldCheck, action: "security" },
-  { title: "Notifications", icon: Mail, action: "notifications" },
+  { title: "Notifications", icon: Bell, action: "notifications" },
   { title: "Favorites", icon: Star, action: "favorites" },
   { title: "Help & support", icon: LifeBuoy, action: "support" },
 ];
@@ -1389,6 +1474,7 @@ const promotions = ref<Promotion[]>([]);
 const promotionsLoading = ref(false);
 const promotionsError = ref("");
 const homePromotionIndex = ref(0);
+const promotionFilter = ref<"all" | "deposit" | "other">("all");
 const googleClientId = ref("");
 let inboxTimer: ReturnType<typeof setInterval> | undefined;
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -1435,6 +1521,27 @@ const pageMetadata = computed(() => {
   return metadata[currentPage.value] || metadata.home;
 });
 const activePromotions = computed(() => promotions.value.filter((promotion) => promotion.active));
+const dailyCheckinDays = computed(() => {
+  const daily = rewardsDashboard.value?.daily;
+  if (!daily) return [];
+  return daily.rewards.map((reward, index) => {
+    const day = index + 1;
+    return {
+      day,
+      reward,
+      completed: daily.claimedToday ? day <= daily.claimDay : day < daily.claimDay,
+      current: daily.claimable && day === daily.claimDay,
+      locked: day > daily.claimDay,
+    };
+  });
+});
+const depositPromotions = computed(() => activePromotions.value.filter(promotionMentionsDeposit));
+const otherPromotions = computed(() => activePromotions.value.filter((promotion) => !promotionMentionsDeposit(promotion)));
+const visiblePromotions = computed(() => {
+  if (promotionFilter.value === "deposit") return depositPromotions.value;
+  if (promotionFilter.value === "other") return otherPromotions.value;
+  return activePromotions.value;
+});
 const showGameSections = computed(() => currentPage.value === "games"
   && !activeGame.value
   && gameLobbyTab.value === "all"
@@ -1492,6 +1599,7 @@ watch([selectedCategory, selectedProvider, query, gameSort, gameLobbyTab], () =>
 });
 const modalTitle = computed(() => {
   if (modal.value === "game-funding") return "Choose game funding";
+  if (modal.value === "daily-checkin") return "Daily checkin";
   if (modal.value === "promo") return "Promotions";
   if (modal.value === "auth") return authMode.value === "login" ? "Sign In" : "Create Account";
   if (modal.value === "kyc") return "KYC Verification";
@@ -1503,7 +1611,7 @@ const modalTitle = computed(() => {
   if (modal.value === "profile-actions") return "Profile";
   if (modal.value === "profile") return "Profile & Account";
   if (modal.value === "menu") return "Menu";
-  if (modal.value === "inbox") return "Inbox";
+  if (modal.value === "inbox") return "Notifications";
   return modal.value ?? "";
 });
 const favoriteNames = computed(() => {
@@ -1538,8 +1646,8 @@ watch(() => [route.path, signedIn.value] as const, ([, isSignedIn]) => {
 watch(() => [route.path, signedIn.value] as const, ([path, isSignedIn]) => {
   if (path === "/rewards" && isSignedIn) {
     void loadReferralData();
-    void loadRewardsDashboard();
-  } else {
+    if (!dailyCheckinLoading.value && modal.value !== "daily-checkin") void loadRewardsDashboard();
+  } else if (modal.value !== "daily-checkin" && !dailyCheckinLoading.value) {
     referralRequestId += 1;
     referralData.value = null;
     referralLoading.value = false;
@@ -1619,7 +1727,10 @@ onMounted(async () => {
     });
   const sessionRequest = token.value ? restoreSession() : Promise.resolve();
   await Promise.all([settingsRequest, sessionRequest]);
-  if (signedIn.value) startInboxPolling();
+  if (signedIn.value) {
+    startInboxPolling();
+    void showDailyCheckin();
+  }
 });
 onUnmounted(() => {
   document.removeEventListener("fullscreenchange", handleFullscreenChange);
@@ -2077,8 +2188,13 @@ async function navigateTo(path: string): Promise<void> {
   await router.push(path);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
-async function selectAccountSection(section: "profile" | "wallet"): Promise<void> {
-  const query = section === "profile" ? {} : { section };
+async function selectAccountSection(section: "profile" | "wallet" | "withdrawal"): Promise<void> {
+  if (section !== "profile") {
+    walletRequestType.value = section === "withdrawal" ? "withdrawal" : "deposit";
+    depositDetailsExpanded.value = false;
+    showDepositPaymentDetails.value = false;
+  }
+  const query = section === "profile" ? {} : { section: "wallet" };
   await router.push({ path: "/account", query });
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -2454,6 +2570,20 @@ function askAboutPromotion(promotion: Promotion): void {
   supportMessage.value = `Please confirm the eligibility and terms for the "${promotion.title}" offer.`;
   modal.value = "support";
 }
+function promotionMentionsDeposit(promotion: Promotion): boolean {
+  return [promotion.title, promotion.description, promotion.reward, promotion.terms]
+    .some((value) => value.toLowerCase().includes("deposit"));
+}
+function openPromotionAction(promotion: Promotion): void {
+  if (!promotionMentionsDeposit(promotion)) {
+    askAboutPromotion(promotion);
+    return;
+  }
+  walletRequestType.value = "deposit";
+  depositDetailsExpanded.value = false;
+  showDepositPaymentDetails.value = false;
+  void navigateTo("/wallet");
+}
 async function googleLogin(): Promise<void> {
   const clientId = googleClientId.value;
   if (!clientId) {
@@ -2513,6 +2643,7 @@ async function googleLogin(): Promise<void> {
           balance.value = data.user.balance;
           modal.value = null;
           startInboxPolling();
+          void showDailyCheckin();
           authReferralCode.value = "";
           notify(`Welcome, ${data.user.username}!`);
         } catch (error) {
@@ -2600,6 +2731,7 @@ async function submitAuth(): Promise<void> {
     balance.value = data.user.balance;
     modal.value = null;
     startInboxPolling();
+    void showDailyCheckin();
     authPassword.value = "";
     if (authMode.value === "register") {
       authCountry.value = "";
@@ -2720,8 +2852,8 @@ async function loadReferralData(): Promise<void> {
   }
 }
 
-async function loadRewardsDashboard(): Promise<void> {
-  if (!signedIn.value || route.path !== "/rewards") return;
+async function loadRewardsDashboard(force = false): Promise<boolean> {
+  if (!signedIn.value || (!force && route.path !== "/rewards")) return false;
   const requestId = ++rewardsRequestId;
   const requestToken = token.value;
   rewardsLoading.value = true;
@@ -2730,13 +2862,34 @@ async function loadRewardsDashboard(): Promise<void> {
     const data = await api("/api/rewards");
     if (requestId === rewardsRequestId && signedIn.value && token.value === requestToken) {
       rewardsDashboard.value = data;
+      return true;
     }
+    return false;
   } catch (error) {
     if (requestId === rewardsRequestId && token.value === requestToken) {
       rewardsError.value = error instanceof Error ? error.message : "Could not load rewards";
     }
+    return false;
   } finally {
     if (requestId === rewardsRequestId) rewardsLoading.value = false;
+  }
+}
+
+async function showDailyCheckin(): Promise<void> {
+  if (!signedIn.value) return;
+  dailyCheckinLoading.value = true;
+  dailyClaimError.value = "";
+  try {
+    const loaded = await loadRewardsDashboard(true);
+    if (!loaded) {
+      if (rewardsError.value) notify(`Could not open daily check-in: ${rewardsError.value}`);
+      return;
+    }
+    if (rewardsDashboard.value?.daily.enabled && modal.value === null) {
+      modal.value = "daily-checkin";
+    }
+  } finally {
+    dailyCheckinLoading.value = false;
   }
 }
 
@@ -2749,10 +2902,10 @@ async function claimDailyReward(): Promise<void> {
     balance.value = result.balance;
     if (user.value) user.value.balance = result.balance;
     notify(`${currencyLabel.value} ${formatAmount(result.amount)} daily reward credited`);
-    await loadRewardsDashboard();
+    await loadRewardsDashboard(modal.value === "daily-checkin" || route.path === "/rewards");
   } catch (error) {
     dailyClaimError.value = error instanceof Error ? error.message : "Could not claim today's reward";
-    await loadRewardsDashboard();
+    await loadRewardsDashboard(modal.value === "daily-checkin" || route.path === "/rewards");
   } finally {
     dailyClaiming.value = false;
   }
@@ -3146,9 +3299,41 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .bottom-nav .wallet-circle { display: grid; width: 53px; height: 53px; margin-top: -28px; margin-bottom: 1px; place-items: center; border-radius: 50%; color: #fff; background: #1caf58; box-shadow: 0 3px 8px rgb(29 126 62 / 20%); }
 .modal-backdrop { position: fixed; z-index: 10; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgb(17 35 23 / 55%); }
 .modal-sheet { width: min(100%, 480px); max-height: 82vh; overflow-y: auto; padding: 18px 18px calc(28px + env(safe-area-inset-bottom)); border-radius: 25px 25px 0 0; background: white; }
+.notification-backdrop { align-items: center; padding: 16px; background: rgb(10 31 19 / 58%); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px); }
+.notification-dialog { width: min(520px, 100%); max-height: min(78vh, 650px); padding: 20px; border: 1px solid #d7e8da; border-radius: 22px; background: linear-gradient(155deg, #fff 0%, #fbfefb 70%, #f1f8f2 100%); box-shadow: 0 22px 70px rgb(6 31 16 / 30%); }
+.daily-checkin-backdrop { align-items: center; padding: 16px; background: rgb(7 22 13 / 78%); -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px); }
+.modal-sheet.daily-checkin-dialog { width: min(460px, 100%); max-height: min(88vh, 720px); padding: 18px; border: 1px solid #426b4e; border-radius: 24px; color: #f3fbf4; background: radial-gradient(ellipse at 50% 0%, #1d3d29 0%, #102719 56%, #09170e 100%); box-shadow: 0 24px 80px rgb(0 0 0 / 48%); }
+.daily-checkin-dialog .modal-heading { position: relative; justify-content: center; margin-bottom: 16px; padding: 4px 46px 14px; border-bottom: 1px solid rgb(205 234 211 / 14%); }
+.daily-checkin-dialog .modal-heading h2 { color: #f4fbf5; font-size: 21px; font-weight: 850; text-align: center; text-transform: none; }
+.daily-checkin-dialog .close-button { position: absolute; top: 0; right: 0; width: 38px; height: 38px; border: 1px solid rgb(209 236 215 / 20%); color: #eff8f0; background: rgb(255 255 255 / 8%); }
+.daily-checkin-popup { display: grid; gap: 14px; }
+.daily-checkin-popup-days { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.daily-checkin-tile { position: relative; display: flex; min-width: 0; min-height: 132px; flex-direction: column; align-items: center; justify-content: space-between; gap: 7px; padding: 10px 6px 9px; border: 1px solid #42664b; border-radius: 16px; color: #eaf5ec; background: linear-gradient(155deg, #193724, #10271a); cursor: default; }
+.daily-checkin-tile:last-child { grid-column: 2; }
+.daily-checkin-tile.current { border-color: #b7d6bc; background: linear-gradient(155deg, #315c3c, #1d3b27); box-shadow: 0 0 0 2px rgb(190 223 195 / 10%), 0 8px 20px rgb(0 0 0 / 18%); cursor: pointer; }
+.daily-checkin-tile.completed { border-color: #799b7d; background: linear-gradient(155deg, #244c30, #173522); }
+.daily-checkin-tile.locked { color: #b3bdb4; border-color: #344c39; background: linear-gradient(155deg, #182a1c, #101f15); }
+.daily-checkin-tile:disabled { opacity: 1; }
+.daily-checkin-day-label { color: #e0ece2; font-size: 11px; font-weight: 850; letter-spacing: .1em; }
+.daily-chest { position: relative; display: block; width: 84px; height: 78px; filter: drop-shadow(0 5px 4px rgb(0 0 0 / 30%)); }
+.daily-chest img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.daily-checkin-tile.locked .daily-chest img { opacity: .48; filter: grayscale(.58); }
+.daily-checkin-tile.completed .daily-chest img { filter: drop-shadow(0 0 5px rgb(237 197 99 / 22%)); }
+.daily-chest-locked-mark, .daily-chest-completed-mark { position: absolute; z-index: 4; top: 43px; right: 3px; display: grid; width: 20px; height: 20px; padding: 3px; border: 1px solid #d7e8d8; border-radius: 50%; color: #f6f9f6; background: #537359; }
+.daily-chest-completed-mark { color: #fff; background: #25864a; }
+.daily-checkin-amount { max-width: 100%; overflow: hidden; color: #c8d8cb; font-size: 10px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.daily-checkin-tile.current .daily-checkin-amount { color: #fff; }
+.daily-checkin-claim-button { display: flex; min-height: 48px; align-items: center; justify-content: center; gap: 8px; border: 1px solid #7fa687; border-radius: 13px; color: #17321f; background: linear-gradient(110deg, #c2e0c7, #8fc89a); box-shadow: 0 5px 15px rgb(0 0 0 / 18%); font-size: 14px; font-weight: 850; cursor: pointer; }
+.daily-checkin-claim-button span { font-size: 12px; }
+.daily-checkin-claim-button:disabled { border-color: #45554a; color: #b7c3b9; background: #29382d; box-shadow: none; cursor: default; }
+.daily-checkin-error { margin: 0; color: #ffb8a9; font-size: 12px; text-align: center; }
 .modal-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .modal-heading h2 { margin: 0; color: #315940; font-size: 19px; text-transform: capitalize; }
+.notification-dialog .modal-heading { justify-content: flex-start; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid #e8f0e9; }
+.notification-dialog .modal-heading h2 { flex: 1; color: #204a31; font-size: 20px; font-weight: 800; text-transform: none; }
+.notification-heading-icon { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border: 1px solid #cce8d3; border-radius: 12px; color: #118044; background: linear-gradient(145deg, #effaf2, #dff3e4); }
 .close-button { display: grid; width: 32px; height: 32px; place-items: center; border: 0; border-radius: 50%; color: #59665d; background: #f0f5f0; }
+.notification-dialog .close-button { width: 36px; height: 36px; border: 1px solid #e2ebe3; }
 .modal-content { display: flex; flex-direction: column; gap: 12px; }
 .game-funding-shortfall { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid #f0dfc0; border-radius: 12px; color: #795b27; background: #fffaf0; font-size: 13px; line-height: 1.45; }
 .game-funding-shortfall span { color: #7b725f; }
@@ -3176,6 +3361,27 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .page-heading h1 { margin: 4px 0 6px; color: #233d2d; font-size: clamp(26px, 7vw, 36px); letter-spacing: -.04em; }
 .page-heading p { max-width: 560px; margin: 0; color: #748078; font-size: 14px; line-height: 1.5; }
 .eyebrow { color: #23944f; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.promotions-page { gap: 16px; }
+.promotions-intro-card { display: flex; min-height: 88px; align-items: center; padding: 16px clamp(18px, 5vw, 28px); border: 1px solid #dcebdd; border-radius: 20px; background: linear-gradient(120deg, #fff 0%, #f3fbf4 65%, #e8f7eb 100%); }
+.promotions-intro-copy { max-width: 620px; }
+.promotions-intro-copy h1 { margin: 0; color: #203c2a; font-size: clamp(26px, 6vw, 36px); letter-spacing: -.045em; }
+.promotion-feature-card { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid #dcebdd; border-radius: 17px; background: #f3faf4; }
+.promotion-feature-icon { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 13px; color: #218c49; background: #e2f2e5; }
+.promotion-feature-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
+.promotion-feature-copy > span { color: #248b4b; font-size: 9px; font-weight: 850; letter-spacing: .12em; }
+.promotion-feature-copy strong { overflow: hidden; color: #254331; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.promotion-feature-copy small { display: -webkit-box; overflow: hidden; color: #718077; font-size: 11px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.promotion-feature-action { display: inline-flex; min-height: 40px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 5px; padding: 0 13px; border: 0; border-radius: 999px; color: white; background: #218f4b; font-size: 11px; font-weight: 750; cursor: pointer; }
+.promotion-filter-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; padding: 5px; border: 1px solid #e4ece5; border-radius: 14px; background: #f5f8f5; }
+.promotion-filter-tabs button { display: flex; min-width: 0; min-height: 40px; align-items: center; justify-content: center; gap: 7px; padding: 7px 10px; border: 1px solid transparent; border-radius: 10px; color: #748078; background: transparent; font-size: 11px; font-weight: 700; cursor: pointer; }
+.promotion-filter-tabs button.active { border-color: #dcebdd; color: #247e43; background: white; box-shadow: 0 2px 6px rgb(34 75 46 / 7%); }
+.promotion-filter-tabs button span { min-width: 21px; padding: 2px 5px; border-radius: 999px; color: #64746a; background: #edf2ed; font-size: 10px; text-align: center; }
+.promotion-rewards-link { display: flex; min-height: 68px; align-items: center; gap: 12px; padding: 12px 15px; border: 1px solid #e1ebe2; border-radius: 15px; color: #345240; background: white; text-align: left; cursor: pointer; }
+.promotion-rewards-icon { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 12px; color: #258b4a; background: #ebf6ed; }
+.promotion-rewards-link > span:nth-child(2) { display: flex; flex: 1; flex-direction: column; gap: 3px; }
+.promotion-rewards-link strong { font-size: 12px; }
+.promotion-rewards-link small { color: #7a887f; font-size: 10px; }
+.promotion-rewards-link > svg { color: #849188; }
 .promotion-grid { display: grid; gap: 12px; }
 .promotion-banner { position: relative; display: flex; min-height: 225px; align-items: center; overflow: hidden; border-radius: 18px; color: white; background: radial-gradient(circle at 85% 15%, rgb(91 206 115 / 50%), transparent 36%), linear-gradient(120deg, #075e35, #128647 68%, #20a85b); }
 .promotion-banner::after { position: absolute; inset: 0; content: ""; background: linear-gradient(90deg, rgb(3 63 31 / 94%) 0%, rgb(3 63 31 / 78%) 46%, rgb(3 63 31 / 5%) 100%); pointer-events: none; }
@@ -3194,9 +3400,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .promotion-banner p { margin: 0 0 8px; color: rgb(255 255 255 / 90%); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .promotion-amount { margin-bottom: 14px; color: #ad7432; font-size: 12px; font-weight: 750; }
 .promotion-banner .promotion-terms { padding-top: 8px; border-top: 1px solid rgb(255 255 255 / 25%); font-size: 11px; }
-.responsible-play-note { padding: 14px; border: 1px solid #e6e9d8; border-radius: 13px; color: #596449; background: #fbf9ed; }
-.responsible-play-note strong { font-size: 13px; }
-.responsible-play-note p { margin: 6px 0 0; font-size: 11px; line-height: 1.6; }
 .auth-configuration-note { margin: 0; padding: 10px; border-radius: 9px; color: #758179; background: #f3f6f3; font-size: 11px; text-align: center; }
 .wallet-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .wallet-summary { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 7px; padding: 15px; border: 1px solid #e1ebe2; border-radius: 16px; background: white; }
@@ -3260,12 +3463,26 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .promo-card p { margin: 3px 0 0; color: #707b73; font-size: 12px; }
 .promo-card .primary-button { padding: 7px 12px; font-size: 12px; }
 .profile-info p { margin: 0; font-size: 14px; }
-.message-list { max-height: 460px; overflow-y: auto; }
-.inbox-message { padding: 12px; border-radius: 10px; background: #f1f6f2; border-left: 3px solid #aebbb1; }
+.message-list { display: grid; max-height: 460px; gap: 10px; overflow-y: auto; }
+.notification-summary { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; padding: 12px; border: 1px solid #dcece0; border-radius: 14px; background: linear-gradient(110deg, #f3fbf5, #fff); }
+.notification-summary-icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 11px; color: #18864a; background: #e2f4e7; }
+.notification-summary > span:nth-child(2) { display: grid; flex: 1; gap: 3px; }
+.notification-summary strong { color: #2f4e39; font-size: 12px; }
+.notification-summary small { color: #7a897e; font-size: 11px; }
+.notification-summary > b { display: grid; min-width: 27px; height: 27px; place-items: center; padding: 0 6px; border-radius: 999px; color: #177445; background: #e5f4e8; font-size: 11px; }
+.inbox-message { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: start; column-gap: 10px; row-gap: 4px; padding: 12px; border: 1px solid #e4ece5; border-left: 3px solid #aebbb1; border-radius: 12px; background: #fff; }
 .inbox-message.unread { border-left-color: #22a95a; background: #e5f3e3; }
-.inbox-message-heading { display: flex; justify-content: space-between; gap: 8px; }
-.inbox-message-heading small { flex: 0 0 auto; color: #829087; font-size: 10px; }
-.inbox-message p { margin: 6px 0 0; color: #607166; font-size: 12px; line-height: 1.45; }
+.notification-item-icon { display: grid; width: 32px; height: 32px; grid-row: span 2; place-items: center; border: 1px solid #e0ebe2; border-radius: 10px; color: #658070; background: #f5f8f5; }
+.inbox-message.unread .notification-item-icon { border-color: #cbe8d1; color: #158147; background: #effaf1; }
+.inbox-message-heading { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.inbox-message-heading strong { color: #334c3a; font-size: 12px; line-height: 1.45; }
+.inbox-message-heading time { flex: 0 0 auto; color: #829087; font-size: 10px; }
+.inbox-message p { grid-column: 2; margin: 0; color: #607166; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.notification-unread-dot { display: inline-block; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; background: #1aa05a; vertical-align: 1px; }
+.notification-empty { display: grid; min-height: 170px; justify-items: center; align-content: center; gap: 8px; margin: 0; padding: 20px; border: 1px dashed #d4e5d7; border-radius: 14px; color: #688071; background: #f8fcf8; text-align: center; }
+.notification-empty > span { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 14px; color: #168047; background: #e7f5ea; }
+.notification-empty strong { color: #315640; font-size: 14px; }
+.notification-empty small { color: #7c8b80; font-size: 11px; }
 .inbox-bet, .inbox-lottery, .inbox-game { border-left-color: #e7a52a; }
 .transaction-list { max-height: 420px; overflow-y: auto; }
 .transaction-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border-radius: 11px; background: #edf5ef; }
@@ -4208,10 +4425,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border-color: #e2ebe3;
   border-radius: 16px;
 }
-.responsible-play-note {
-  border-radius: 16px;
-  line-height: 1.55;
-}
 .signed-out-card {
   border-color: #e2ebe3;
   box-shadow: 0 6px 20px rgb(31 72 43 / 5%);
@@ -4219,6 +4432,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 640px) {
   .page-section {
     padding-bottom: 20px;
+  }
+  .promotions-intro-card {
+    min-height: 76px;
+    padding: 18px;
+  }
+  .promotion-feature-card {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+  .promotion-feature-action {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  .promotion-filter-tabs button {
+    gap: 4px;
+    padding-right: 5px;
+    padding-left: 5px;
+    font-size: 10px;
   }
   .account-hero-row {
     gap: 10px;
