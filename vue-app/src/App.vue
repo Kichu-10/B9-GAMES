@@ -4392,4 +4392,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border-color: #c9e2ce;
   box-shadow: 0 5px 12px rgb(21 111 53 / 12%);
 }
+.page-home .game-category-section {
+  border-color: #e1eae2;
+  border-radius: 21px;
+  background: linear-gradient(180deg, #fff, #fcfdfc);
+  box-shadow: 0 9px 26px rgb(31 72 43 / 6%);
+}
+.page-home .home-game-category-heading {
+  margin-bottom: 13px;
+}
 </style>
