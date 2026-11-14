@@ -3454,14 +3454,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .balance-button { height: 42px; }
   .search-wrap { padding-right: clamp(20px, 4vw, 52px); padding-left: clamp(20px, 4vw, 52px); }
   .content { width: min(100%, 1320px); gap: 20px; margin: 0 auto; padding: 26px clamp(24px, 5vw, 72px) 42px; }
-  .promo-frame { padding: 0; }
-  .hero { height: clamp(280px, 27vw, 380px); min-height: 280px; max-height: none; aspect-ratio: auto; }
-  .hero-copy { min-height: 0; padding-right: clamp(24px, 5vw, 64px); padding-left: clamp(24px, 5vw, 64px); }
-  .hero-title { font-size: clamp(20px, 2.2vw, 30px); }
-  .hero-title strong { font-size: clamp(40px, 5vw, 68px); }
-  .hero-subtitle { font-size: clamp(14px, 1.3vw, 18px); }
-  .hero-with-art .hero-copy { max-width: 64%; }
-  .hero-art { width: 48%; object-position: center; }
   .welcome-banner { min-height: 0; }
   .homepage-custom-banner { max-height: none; }
   .categories { min-height: 118px; padding-right: 18px; padding-left: 18px; }
