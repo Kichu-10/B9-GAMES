@@ -1078,6 +1078,9 @@ function clearHomepageBannerPreview(): void {
   homepageBannerPreviewUrl.value = "";
 }
 
+async function persistHomepageBannerSettings(): Promise<void> {
+  const saved = await api("/api/admin/homepage/banner/settings", {
+    method: "PATCH",
 async function uploadHomepageBanner(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
