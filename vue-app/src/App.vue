@@ -3013,28 +3013,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .search-wrap input { width: 100%; padding: 9px 12px; border: 0; border-radius: 10px; outline: none; color: #273f31; background: #fff; }
 .clear-search { display: grid; place-items: center; padding: 2px; border: 0; background: none; }
 .content { display: flex; width: min(100%, 1320px); flex-direction: column; gap: 13px; margin: 0 auto; padding: 13px 13px 20px; }
-.promo-frame { padding: 0; border-radius: 20px; background: #fff; box-shadow: 0 3px 12px rgb(32 98 51 / 5%); }
-.hero { position: relative; min-height: 0; max-height: 320px; aspect-ratio: 393 / 168; overflow: hidden; border-radius: 20px; color: #fff; background: radial-gradient(circle at 85% 15%, rgb(91 206 115 / 50%), transparent 36%), linear-gradient(120deg, #075e35, #128647 68%, #20a85b); }
-.hero::after { position: absolute; inset: 0; content: ""; background: linear-gradient(90deg, rgb(3 83 39 / 38%) 0%, transparent 58%); pointer-events: none; }
-.hero-art { position: absolute; inset: 0 0 0 auto; width: 52%; height: 100%; object-fit: cover; object-position: center; mask-image: linear-gradient(90deg, transparent, #000 24%); }
-.hero-creative-button { position: absolute; inset: 0; display: block; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
-.hero-full-creative-image { display: block; width: 100%; height: 100%; object-fit: cover; }
-.hero-full-creative::after { display: none; }
-.hero-copy { position: relative; z-index: 1; display: flex; width: 100%; height: 100%; min-height: 0; max-width: 780px; flex-direction: column; align-items: flex-start; justify-content: center; padding: 12px clamp(14px, 5vw, 38px); text-shadow: 0 1px 5px rgb(0 56 24 / 25%); }
-.hero-with-art .hero-copy { max-width: 58%; }
-.hero-title { display: flex; align-items: baseline; gap: 7px; margin: 0; font-size: clamp(14px, 4.2vw, 20px); font-weight: 750; line-height: 1; }
-.hero-title strong { font-size: clamp(28px, 9.5vw, 50px); font-weight: 900; letter-spacing: -1.5px; }
-.hero-subtitle { max-width: 440px; margin: 5px 0 0; font-size: clamp(11px, 3.3vw, 15px); font-weight: 650; line-height: 1.25; overflow-wrap: anywhere; }
-.hero-amount { display: flex; flex-direction: column; margin: 6px 0 0; color: #ffe66d; font-size: clamp(17px, 5vw, 26px); font-weight: 900; line-height: 1.05; overflow-wrap: anywhere; }
-.hero-amount small { margin-bottom: 2px; color: #acd59c; font-size: 9px; font-weight: 750; }
-.claim-button { display: flex; width: fit-content; align-items: center; gap: 6px; margin-top: 5px; padding: 4px 6px 4px 11px; border: 0; border-radius: 99px; color: white; background: #28bf70; font-size: clamp(10px, 3.3vw, 14px); font-weight: 650; text-shadow: none; }
-.claim-button > span { display: grid; width: 21px; height: 21px; place-items: center; border-radius: 50%; color: #229e5a; background: white; }
-.hero-nav { position: absolute; z-index: 3; right: 12px; bottom: 8px; left: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.hero-arrow { display: grid; flex: 0 0 auto; width: 28px; height: 28px; place-items: center; padding: 0; border: 1px solid rgb(255 255 255 / 22%); border-radius: 50%; color: #fff; background: rgb(4 40 20 / 55%); backdrop-filter: blur(4px); cursor: pointer; transition: background .16s ease, transform .16s ease; }
-.hero-arrow:hover { background: rgb(4 40 20 / 78%); transform: scale(1.05); }
-.hero-dots { display: flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 999px; background: rgb(4 40 20 / 42%); backdrop-filter: blur(4px); }
-.hero-dots button { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: rgb(255 255 255 / 55%); cursor: pointer; transition: width .18s ease, background .18s ease; }
-.hero-dots button.selected { width: 18px; border-radius: 9px; background: #fff; }
 .homepage-custom-banner { position: relative; max-height: 320px; aspect-ratio: 1240 / 520; overflow: hidden; border-radius: 20px; color: #fff; background: #075e35; box-shadow: 0 3px 12px rgb(32 98 51 / 5%); }
 .homepage-custom-banner::after { position: absolute; inset: 0; content: ""; background: linear-gradient(90deg, rgb(3 63 31 / 82%) 0%, rgb(3 63 31 / 42%) 54%, transparent 100%); pointer-events: none; }
 .homepage-custom-banner--creative::after { display: none; }
