@@ -1086,6 +1086,8 @@ async function persistHomepageBannerSettings(): Promise<void> {
   platformSettings.value.homepageBanner = {
     ...platformSettings.value.homepageBanner,
     ...saved.homepageBanner,
+  };
+}
 async function uploadHomepageBanner(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
