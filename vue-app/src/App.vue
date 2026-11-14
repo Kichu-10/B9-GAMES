@@ -4386,4 +4386,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .page-home .category-icon {
   transition: transform .18s ease, box-shadow .18s ease;
 }
+.page-home .category.selected .category-icon,
+.page-home .category:hover .category-icon {
+  transform: translateY(-2px);
+  border-color: #c9e2ce;
+  box-shadow: 0 5px 12px rgb(21 111 53 / 12%);
+}
 </style>
