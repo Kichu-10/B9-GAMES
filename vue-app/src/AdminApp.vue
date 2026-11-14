@@ -1139,8 +1139,6 @@ async function removeHomepageBanner(): Promise<void> {
   try {
     platformSettings.value.homepageBanner.bannerImage = "";
     await persistHomepageBannerSettings();
-      method: "PATCH",
-      body: JSON.stringify(platformSettings.value),
     });
     platformSettings.value = {
       ...platformSettings.value,
