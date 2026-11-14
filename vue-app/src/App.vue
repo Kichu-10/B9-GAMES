@@ -3024,8 +3024,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .homepage-custom-banner-full-link { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; cursor: pointer; }
 .homepage-custom-banner-full-link:focus-visible { outline: 3px solid #fff; outline-offset: -5px; }
 @media (max-width: 767px) {
-  /* Reserve the strip at the bottom of the banner for the slide controls. */
-  .hero-copy { padding-bottom: 46px; }
   .homepage-custom-banner-copy { width: 76%; gap: 6px; padding: 12px 16px; }
   .homepage-custom-banner-copy h2 { font-size: clamp(17px, 5.4vw, 28px); }
   .homepage-custom-banner-copy p { font-size: clamp(11px, 3.2vw, 14px); }
