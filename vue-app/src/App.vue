@@ -4447,4 +4447,28 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: linear-gradient(120deg, #d68d2c, #edaa46);
   box-shadow: 0 3px 8px rgb(77 42 5 / 25%);
 }
+@media (max-width: 480px) {
+  .page-home .content {
+    gap: 13px;
+  }
+  .page-home .homepage-custom-banner {
+    border-radius: 19px;
+  }
+  .page-home .categories {
+    min-height: 96px;
+  }
+  .page-home .game-category-section {
+    border-radius: 18px;
+  }
+  .page-home .home-game-card {
+    border-radius: 13px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-home .category-icon,
+  .page-home .home-category-arrow,
+  .page-home .home-view-all {
+    transition: none;
+  }
+}
 </style>
