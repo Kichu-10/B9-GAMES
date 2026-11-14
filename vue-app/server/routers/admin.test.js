@@ -88,6 +88,9 @@ test("admin can save and upload homepage banner content", async () => {
     .expect(400);
 
   db.prepare(`
+    INSERT INTO platform_settings (id, promotions) VALUES (1, ?)
+    ON CONFLICT(id) DO UPDATE SET promotions = excluded.promotions
+  `).run(JSON.stringify([{ id: "draft-offer", title: "" }]));
   const saved = await request(app)
     .patch("/api/admin/settings")
     .set("Authorization", `Bearer ${adminToken}`)
