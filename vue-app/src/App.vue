@@ -4365,4 +4365,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: linear-gradient(100deg, #e6f4e8, #f8fbf8 78%);
   box-shadow: 0 5px 16px rgb(24 76 40 / 5%);
 }
+.page-home .announcement-volume {
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+  border-radius: 11px;
+  color: #fff;
+  background: #188549;
+}
+.page-home .categories {
+  min-height: 104px;
+  border: 1px solid #e0e9e1;
+  border-radius: 21px;
+  background: linear-gradient(180deg, #fff, #f9fcf9);
+  box-shadow: 0 9px 24px rgb(31 72 43 / 7%);
+}
 </style>
