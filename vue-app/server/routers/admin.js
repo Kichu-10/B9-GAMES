@@ -114,6 +114,8 @@ const homepageBannerSchema = z.object({
   buttonLabel: z.string().trim().max(32).default(""),
   buttonLink: z.enum(["/games", "/wallet", "/promotions", "/rewards"]).default("/games"),
   bannerImage: z.string().trim().max(100).regex(/^(|homepage-[a-f0-9-]+\.(jpg|png|webp))$/i).default(""),
+  bannerIncludesText: z.boolean().default(false),
+});
 const settingsSchema = z.object({
   announcement: z.string().trim().max(500).default(""),
   maintenanceMode: z.boolean().default(false),
@@ -129,7 +131,7 @@ const settingsSchema = z.object({
   walletNumber: z.string().trim().max(80).default(""),
   paymentInstructions: z.string().trim().max(1000).default(""),
   jackpotAmount: z.number().finite().min(0).max(1000000000000).default(10799004.2),
-  homepageBanner: z.object({
+  homepageBanner: homepageBannerSchema.default({}),
     active: z.boolean().default(false),
     title: z.string().trim().max(100).default(""),
     description: z.string().trim().max(300).default(""),
