@@ -4409,4 +4409,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .page-home .home-game-category-heading h2 svg {
   color: #168446;
 }
+.page-home .home-category-arrow {
+  width: 34px;
+  height: 34px;
+  border-color: #e0e9e1;
+  border-radius: 11px;
+  background: #f7faf7;
+  transition: color .18s ease, background .18s ease, transform .18s ease;
+}
 </style>
