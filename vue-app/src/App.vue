@@ -4422,4 +4422,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   color: #fff;
   background: #168446;
 }
+.page-home .home-view-all {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #d4e8d8;
+  border-radius: 11px;
+  background: #edf7ef;
+  transition: color .18s ease, background .18s ease;
+}
 </style>
