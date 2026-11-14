@@ -1114,9 +1114,6 @@ async function uploadHomepageBanner(event: Event): Promise<void> {
   form.append("banner", file);
   try {
     await persistHomepageBannerSettings();
-    });
-    platformSettings.value = {
-      ...platformSettings.value,
       ...saved.settings,
       homepageBanner: { ...platformSettings.value.homepageBanner, ...saved.settings.homepageBanner },
     };
