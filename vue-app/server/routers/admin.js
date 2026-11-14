@@ -282,6 +282,7 @@ export function createAdminRouter(uploadDir) {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
   const uploadPromotionImage = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024, files: 1 },
@@ -763,8 +764,7 @@ export function createAdminRouter(uploadDir) {
     }
 
     if (previousImage && previousImage !== banner.bannerImage) {
-      try {
-        fs.rmSync(path.join(homepageImageDir, path.basename(previousImage)), { force: true });
+      removeHomepageBannerImage(previousImage);
       } catch (error) {
         logger.warn("homepage_banner_cleanup_failed", {
           error: error instanceof Error ? error.message : String(error),
