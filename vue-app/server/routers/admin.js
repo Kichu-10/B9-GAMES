@@ -1232,7 +1232,6 @@ export function createAdminRouter(uploadDir) {
     }
     if (previousHomepageImage && previousHomepageImage !== db.platformSettings.homepageBanner.bannerImage) {
       removeHomepageBannerImage(previousHomepageImage);
-      }
     }
     res.json({ settings: db.platformSettings });
   });

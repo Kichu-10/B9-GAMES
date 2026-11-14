@@ -87,6 +87,7 @@ test("admin can save and upload homepage banner content", async () => {
     .send({ homepageBanner: { ...homepageBanner, buttonLink: "https://example.com" }, promotions: [] })
     .expect(400);
 
+  db.prepare(`
   const saved = await request(app)
     .patch("/api/admin/settings")
     .set("Authorization", `Bearer ${adminToken}`)
