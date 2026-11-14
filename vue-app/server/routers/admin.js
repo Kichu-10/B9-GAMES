@@ -769,6 +769,8 @@ export function createAdminRouter(uploadDir) {
     res.json({ homepageBanner: banner });
   });
 
+  });
+
   router.get("/game-management", (_req, res) => {
     const providers = listManagedProviders();
     const games = listManagedGames();
