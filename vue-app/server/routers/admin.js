@@ -132,7 +132,6 @@ const settingsSchema = z.object({
   paymentInstructions: z.string().trim().max(1000).default(""),
   jackpotAmount: z.number().finite().min(0).max(1000000000000).default(10799004.2),
   homepageBanner: homepageBannerSchema.default({}),
-  }).default({}),
   promotions: z.array(z.object({
     id: z.string().trim().min(1).max(80),
     title: z.string().trim().min(1).max(100),
@@ -274,6 +273,8 @@ export function createAdminRouter(uploadDir) {
   fs.mkdirSync(homepageImageDir, { recursive: true });
   fs.mkdirSync(gameThumbnailDir, { recursive: true });
   fs.mkdirSync(providerLogoDir, { recursive: true });
+  function removeHomepageBannerImage(filename) {
+    if (!filename) return;
   const uploadPromotionImage = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024, files: 1 },
