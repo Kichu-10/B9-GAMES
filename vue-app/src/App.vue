@@ -4344,4 +4344,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: linear-gradient(110deg, #0d6033, #117b40 48%, #159447);
   box-shadow: 0 8px 26px rgb(12 69 34 / 20%);
 }
+.page-home .content {
+  gap: clamp(14px, 2vw, 21px);
+  padding-top: clamp(14px, 2.2vw, 24px);
+}
+.page-home .homepage-custom-banner {
+  border-radius: 24px;
+  box-shadow: 0 14px 34px rgb(20 66 35 / 13%);
+}
 </style>
