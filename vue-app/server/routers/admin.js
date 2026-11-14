@@ -1232,8 +1232,6 @@ export function createAdminRouter(uploadDir) {
     }
     if (previousHomepageImage && previousHomepageImage !== db.platformSettings.homepageBanner.bannerImage) {
       removeHomepageBannerImage(previousHomepageImage);
-        fs.rmSync(path.join(homepageImageDir, path.basename(previousHomepageImage)), { force: true });
-      } catch (error) {
         logger.warn("homepage_banner_cleanup_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
