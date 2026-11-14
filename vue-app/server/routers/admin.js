@@ -107,6 +107,8 @@ const userUpdateSchema = z.object({
 }).refine((value) => value.status !== undefined
   || value.balance !== undefined, "Provide a user update");
 const kycReviewSchema = z.object({ status: z.enum(["verified", "rejected"]), note: z.string().trim().max(1000).optional().default("") });
+const homepageBannerSchema = z.object({
+  active: z.boolean().default(false),
 const settingsSchema = z.object({
   announcement: z.string().trim().max(500).default(""),
   maintenanceMode: z.boolean().default(false),
