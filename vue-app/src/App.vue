@@ -4417,4 +4417,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: #f7faf7;
   transition: color .18s ease, background .18s ease, transform .18s ease;
 }
+.page-home .home-category-arrow:hover {
+  transform: translateY(-1px);
+  color: #fff;
+  background: #168446;
+}
 </style>
