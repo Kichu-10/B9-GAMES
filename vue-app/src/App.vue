@@ -4334,4 +4334,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     transition: none;
   }
 }
+
+.page-frame {
+  background:
+    radial-gradient(ellipse at 12% 4%, rgb(213 235 218 / 62%), transparent 34%),
+    #f3f7f3;
+}
+.topbar {
+  background: linear-gradient(110deg, #0d6033, #117b40 48%, #159447);
+  box-shadow: 0 8px 26px rgb(12 69 34 / 20%);
+}
 </style>
