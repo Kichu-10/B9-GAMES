@@ -4352,4 +4352,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border-radius: 24px;
   box-shadow: 0 14px 34px rgb(20 66 35 / 13%);
 }
+.page-home .jackpot {
+  border: 1px solid #e0eadf;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #fff, #f3faf3);
+  box-shadow: 0 10px 28px rgb(28 78 43 / 8%);
+}
+.page-home .announcement {
+  min-height: 56px;
+  border: 1px solid #d5e7d8;
+  border-radius: 16px;
+  background: linear-gradient(100deg, #e6f4e8, #f8fbf8 78%);
+  box-shadow: 0 5px 16px rgb(24 76 40 / 5%);
+}
 </style>
