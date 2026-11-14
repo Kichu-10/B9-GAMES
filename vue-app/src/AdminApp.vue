@@ -1139,7 +1139,6 @@ async function removeHomepageBanner(): Promise<void> {
   try {
     platformSettings.value.homepageBanner.bannerImage = "";
     await persistHomepageBannerSettings();
-    };
     clearHomepageBannerPreview();
     settingsMessage.value = "Homepage banner removed.";
   } catch (caught) {
