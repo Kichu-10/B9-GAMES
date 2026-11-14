@@ -765,8 +765,6 @@ export function createAdminRouter(uploadDir) {
 
     if (previousImage && previousImage !== banner.bannerImage) {
       removeHomepageBannerImage(previousImage);
-      } catch (error) {
-        logger.warn("homepage_banner_cleanup_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
       }
