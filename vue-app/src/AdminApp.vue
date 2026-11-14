@@ -1114,8 +1114,6 @@ async function uploadHomepageBanner(event: Event): Promise<void> {
   form.append("banner", file);
   try {
     await persistHomepageBannerSettings();
-      method: "PATCH",
-      body: JSON.stringify(platformSettings.value),
     });
     platformSettings.value = {
       ...platformSettings.value,
