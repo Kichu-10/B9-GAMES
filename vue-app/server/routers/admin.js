@@ -109,6 +109,9 @@ const userUpdateSchema = z.object({
 const kycReviewSchema = z.object({ status: z.enum(["verified", "rejected"]), note: z.string().trim().max(1000).optional().default("") });
 const homepageBannerSchema = z.object({
   active: z.boolean().default(false),
+  title: z.string().trim().max(100).default(""),
+  description: z.string().trim().max(300).default(""),
+  buttonLabel: z.string().trim().max(32).default(""),
 const settingsSchema = z.object({
   announcement: z.string().trim().max(500).default(""),
   maintenanceMode: z.boolean().default(false),
