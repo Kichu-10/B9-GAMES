@@ -4401,4 +4401,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .page-home .home-game-category-heading {
   margin-bottom: 13px;
 }
+.page-home .home-game-category-heading h2 {
+  gap: 9px;
+  color: #234b31;
+  font-size: clamp(16px, 2.2vw, 20px);
+}
+.page-home .home-game-category-heading h2 svg {
+  color: #168446;
+}
 </style>
