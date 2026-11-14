@@ -109,9 +109,9 @@ test("admin can save and upload homepage banner content", async () => {
 
   homepageBanner.bannerImage = "";
   const removed = await request(app)
-    .patch("/api/admin/settings")
+    .patch("/api/admin/homepage/banner/settings")
     .set("Authorization", `Bearer ${adminToken}`)
-    .send({ homepageBanner, promotions: [] })
+    .send(homepageBanner)
     .expect(200);
   assert.deepEqual(removed.body.settings.homepageBanner, homepageBanner);
   assert.equal(fs.existsSync(path.join(tempDir, "uploads", "homepage-banners", filename)), false);
