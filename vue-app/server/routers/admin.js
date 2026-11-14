@@ -772,6 +772,8 @@ export function createAdminRouter(uploadDir) {
   router.patch("/homepage/banner/settings", validate(homepageBannerSchema), (req, res) => {
     const db = readDb();
     db.platformSettings ||= {};
+    const previousImage = db.platformSettings.homepageBanner?.bannerImage || "";
+    db.platformSettings.homepageBanner = req.body;
   });
 
   router.get("/game-management", (_req, res) => {
