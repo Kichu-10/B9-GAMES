@@ -1081,6 +1081,8 @@ function clearHomepageBannerPreview(): void {
 async function persistHomepageBannerSettings(): Promise<void> {
   const saved = await api("/api/admin/homepage/banner/settings", {
     method: "PATCH",
+    body: JSON.stringify(platformSettings.value.homepageBanner),
+  });
 async function uploadHomepageBanner(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
