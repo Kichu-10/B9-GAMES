@@ -277,6 +277,9 @@ export function createAdminRouter(uploadDir) {
     if (!filename) return;
     try {
       fs.rmSync(path.join(homepageImageDir, path.basename(filename)), { force: true });
+    } catch (error) {
+      logger.warn("homepage_banner_cleanup_failed", {
+        error: error instanceof Error ? error.message : String(error),
   const uploadPromotionImage = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024, files: 1 },
