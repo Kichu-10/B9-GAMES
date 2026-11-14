@@ -774,6 +774,9 @@ export function createAdminRouter(uploadDir) {
     db.platformSettings ||= {};
     const previousImage = db.platformSettings.homepageBanner?.bannerImage || "";
     db.platformSettings.homepageBanner = req.body;
+    const admin = db.users.find((item) => item.id === req.user.id);
+    addAudit(db, admin?.username || "admin", "HOMEPAGE_BANNER_UPDATED", "Homepage banner", "Homepage banner content updated");
+    writeDb(db);
   });
 
   router.get("/game-management", (_req, res) => {
