@@ -18,61 +18,8 @@
 
     <main class="content">
       <template v-if="currentPage === 'home'">
-      <section v-if="signedIn && activePromotions.length" class="promo-frame" aria-label="Member promotions">
-        <div class="hero" :class="{ 'hero-with-art': homePromotion?.bannerUrl && !homePromotion.bannerIncludesText, 'hero-full-creative': homePromotion?.bannerUrl && homePromotion.bannerIncludesText }">
-          <button v-if="homePromotion?.bannerUrl && homePromotion.bannerIncludesText" class="hero-creative-button" :aria-label="`View ${homePromotion.title}`" @click="navigateTo('/promotions')">
-            <img class="hero-full-creative-image" :src="homePromotion.bannerUrl" alt="" loading="eager" fetchpriority="high" decoding="async" />
-          </button>
-          <img
-            v-else-if="homePromotion?.bannerUrl"
-            class="hero-art"
-            :src="homePromotion.bannerUrl"
-            alt=""
-            loading="eager"
-            fetchpriority="high"
-            decoding="async"
-          />
-          <div v-if="!homePromotion?.bannerIncludesText || !homePromotion?.bannerUrl" class="hero-copy">
-            <p class="hero-title"><span>{{ homePromotion?.title }}</span></p>
-            <p class="hero-subtitle">{{ homePromotion?.description }}</p>
-            <p class="hero-amount"><small>OFFER</small>{{ homePromotion?.reward || "See offer terms" }}</p>
-            <button class="claim-button" @click="navigateTo('/promotions')">View offer <span><ChevronRight :size="20" :stroke-width="3" /></span></button>
-          </div>
-          <div
-            v-if="activePromotions.length > 1"
-            class="hero-nav"
-            role="group"
-            aria-label="Promotion slides"
-          >
-            <button
-              type="button"
-              class="hero-arrow hero-arrow--prev"
-              aria-label="Previous promotion"
-              @click="stepPromotion(-1)"
-            ><ChevronLeft :size="18" :stroke-width="2.5" /></button>
-            <div class="hero-dots">
-              <button
-                v-for="(promotion, index) in activePromotions"
-                :key="promotion.id"
-                type="button"
-                :class="{ selected: homePromotionIndex === index }"
-                :aria-label="`Show promotion ${index + 1}: ${promotion.title}`"
-                :aria-current="homePromotionIndex === index ? 'true' : undefined"
-                @click="homePromotionIndex = index"
-              />
-            </div>
-            <button
-              type="button"
-              class="hero-arrow hero-arrow--next"
-              aria-label="Next promotion"
-              @click="stepPromotion(1)"
-            ><ChevronRight :size="18" :stroke-width="2.5" /></button>
-          </div>
-        </div>
-      </section>
-
       <section
-        v-else-if="homepageBanner.active && homepageBanner.imageUrl"
+        v-if="homepageBanner.active && homepageBanner.imageUrl"
         class="homepage-custom-banner"
         :class="{ 'homepage-custom-banner--creative': homepageBanner.bannerIncludesText }"
         aria-label="Homepage banner"
@@ -97,7 +44,7 @@
       <BonusBanner
         v-else
         :slides="bannerSlides"
-        :active-index="homePromotionIndex"
+        :active-index="homeBannerIndex"
         @claim="navigateTo('/wallet')"
         @navigate="navigateTo"
         @slide-change="changeBannerSlide"
@@ -1461,12 +1408,11 @@ const maintenanceMode = ref(false);
 const promotions = ref<Promotion[]>([]);
 const promotionsLoading = ref(false);
 const promotionsError = ref("");
-const homePromotionIndex = ref(0);
+const homeBannerIndex = ref(0);
 const promotionFilter = ref<"all" | "deposit" | "other">("all");
 const googleClientId = ref("");
 let inboxTimer: ReturnType<typeof setInterval> | undefined;
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
-let promotionCarouselTimer: ReturnType<typeof setInterval> | undefined;
 let googleScriptPromise: Promise<void> | undefined;
 let googleInitialized = false;
 let referralRequestId = 0;
@@ -1546,7 +1492,6 @@ const bannerSlides = [
   { id: "promotions", label: "promotions" },
   { id: "wallet", label: "wallet" },
 ];
-const homePromotion = computed(() => activePromotions.value[homePromotionIndex.value] || activePromotions.value[0]);
 const walletKycVerified = computed(() => user.value?.kycStatus === "verified");
 const hasMoreGames = computed(() => gameCatalogPage.value < gameCatalogPageCount.value);
 
@@ -1684,11 +1629,6 @@ onMounted(async () => {
       if (category) void loadNextGameSection(category);
     }
   }, { rootMargin: "240px 0px" });
-  promotionCarouselTimer = setInterval(() => {
-    if (currentPage.value === "home" && activePromotions.value.length > 1) {
-      homePromotionIndex.value = (homePromotionIndex.value + 1) % activePromotions.value.length;
-    }
-  }, 5000);
   if ((currentPage.value === "games" && !showAllGames.value) || currentPage.value === "home") void loadGameSections();
   else void loadGames();
   token.value = localStorage.getItem("b9_token") || "";
@@ -1736,7 +1676,6 @@ onUnmounted(() => {
   clearGameFrameLoadTimer();
   if (noticeTimer) clearTimeout(noticeTimer);
   if (inboxTimer) clearInterval(inboxTimer);
-  if (promotionCarouselTimer) clearInterval(promotionCarouselTimer);
   clearAvatarUrl();
 });
 
@@ -2195,13 +2134,7 @@ async function selectAccountSection(section: "profile" | "wallet" | "withdrawal"
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function changeBannerSlide(index: number): void {
-  homePromotionIndex.value = index;
-}
-
-function stepPromotion(delta: number): void {
-  const total = activePromotions.value.length;
-  if (total < 2) return;
-  homePromotionIndex.value = (homePromotionIndex.value + delta + total) % total;
+  homeBannerIndex.value = index;
 }
 function toggleGameSearch(): void {
   if (route.path !== "/games") {
