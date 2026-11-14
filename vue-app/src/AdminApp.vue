@@ -1096,6 +1096,8 @@ async function saveHomepageBannerSettings(): Promise<void> {
   try {
     await persistHomepageBannerSettings();
     settingsMessage.value = "Homepage banner settings saved.";
+  } catch (caught) {
+    settingsMessage.value = caught instanceof Error ? caught.message : "Could not save homepage banner settings";
 async function uploadHomepageBanner(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
