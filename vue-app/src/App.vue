@@ -4380,4 +4380,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: linear-gradient(180deg, #fff, #f9fcf9);
   box-shadow: 0 9px 24px rgb(31 72 43 / 7%);
 }
+.page-home .category {
+  gap: 6px;
+}
+.page-home .category-icon {
+  transition: transform .18s ease, box-shadow .18s ease;
+}
 </style>
