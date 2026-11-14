@@ -3029,21 +3029,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .homepage-custom-banner-copy p { font-size: clamp(11px, 3.2vw, 14px); }
   .homepage-custom-banner-button { min-height: 32px; padding: 6px 13px; font-size: 11px; }
 }
-@media (max-width: 430px) {
-  /* Room for the slide controls without crowding the claim button. */
-  .hero { aspect-ratio: auto; min-height: 172px; }
-}
-@media (max-width: 360px) {
-  /* Narrow phones cannot fit the copy plus the slide controls at the default
-     ratio, so give the banner a floor height instead of clipping the title. */
-  .hero { aspect-ratio: auto; min-height: 196px; }
-  .hero-copy { padding-bottom: 54px; }
-  .hero-nav { right: 9px; bottom: 7px; left: 9px; gap: 6px; }
-  .hero-arrow { width: 24px; height: 24px; }
-  .hero-dots { padding: 5px 7px; gap: 5px; }
-  .hero-dots button { width: 6px; height: 6px; }
-  .hero-dots button.selected { width: 15px; }
-}
 .welcome-banner { position: relative; display: block; min-height: 0; aspect-ratio: 1240 / 520; overflow: hidden; padding: 0; border: 2px solid #159447; border-radius: 25px; color: white; background: #075e35; }
 .welcome-banner::before { display: none; }
 .welcome-banner-image { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
