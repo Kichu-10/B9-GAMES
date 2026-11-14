@@ -92,11 +92,11 @@ test("admin can save and upload homepage banner content", async () => {
     ON CONFLICT(id) DO UPDATE SET promotions = excluded.promotions
   `).run(JSON.stringify([{ id: "draft-offer", title: "" }]));
   const saved = await request(app)
-    .patch("/api/admin/settings")
+    .patch("/api/admin/homepage/banner/settings")
     .set("Authorization", `Bearer ${adminToken}`)
-    .send({ homepageBanner, promotions: [] })
+    .send(homepageBanner)
     .expect(200);
-  assert.deepEqual(saved.body.settings.homepageBanner, homepageBanner);
+  assert.deepEqual(saved.body.homepageBanner, homepageBanner);
 
   const uploaded = await request(app)
     .post("/api/admin/homepage/banner")
