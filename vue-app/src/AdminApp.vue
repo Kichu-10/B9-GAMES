@@ -1113,9 +1113,7 @@ async function uploadHomepageBanner(event: Event): Promise<void> {
   const form = new FormData();
   form.append("banner", file);
   try {
-    const validation = promotionValidationError();
-    if (validation) throw new Error(validation);
-    const saved = await api("/api/admin/settings", {
+    await persistHomepageBannerSettings();
       method: "PATCH",
       body: JSON.stringify(platformSettings.value),
     });
