@@ -4430,4 +4430,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: #edf7ef;
   transition: color .18s ease, background .18s ease;
 }
+.page-home .home-view-all:hover {
+  color: #fff;
+  background: #168446;
+}
 </style>
