@@ -1114,8 +1114,6 @@ async function uploadHomepageBanner(event: Event): Promise<void> {
   form.append("banner", file);
   try {
     await persistHomepageBannerSettings();
-      ...saved.settings,
-      homepageBanner: { ...platformSettings.value.homepageBanner, ...saved.settings.homepageBanner },
     };
     const headers = new Headers();
     if (token.value) headers.set("Authorization", `Bearer ${token.value}`);
