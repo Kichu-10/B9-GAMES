@@ -132,8 +132,6 @@ const settingsSchema = z.object({
   paymentInstructions: z.string().trim().max(1000).default(""),
   jackpotAmount: z.number().finite().min(0).max(1000000000000).default(10799004.2),
   homepageBanner: homepageBannerSchema.default({}),
-    active: z.boolean().default(false),
-    title: z.string().trim().max(100).default(""),
     description: z.string().trim().max(300).default(""),
     buttonLabel: z.string().trim().max(32).default(""),
     buttonLink: z.enum(["/games", "/wallet", "/promotions", "/rewards"]).default("/games"),
