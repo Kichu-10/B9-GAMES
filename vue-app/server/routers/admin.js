@@ -132,8 +132,6 @@ const settingsSchema = z.object({
   paymentInstructions: z.string().trim().max(1000).default(""),
   jackpotAmount: z.number().finite().min(0).max(1000000000000).default(10799004.2),
   homepageBanner: homepageBannerSchema.default({}),
-    bannerImage: z.string().trim().max(100).regex(/^(|homepage-[a-f0-9-]+\.(jpg|png|webp))$/i).default(""),
-    bannerIncludesText: z.boolean().default(false),
   }).default({}),
   promotions: z.array(z.object({
     id: z.string().trim().min(1).max(80),
