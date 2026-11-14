@@ -1114,7 +1114,6 @@ async function uploadHomepageBanner(event: Event): Promise<void> {
   form.append("banner", file);
   try {
     await persistHomepageBannerSettings();
-    };
     const headers = new Headers();
     if (token.value) headers.set("Authorization", `Bearer ${token.value}`);
     const response = await fetch("/api/admin/homepage/banner", { method: "POST", headers, body: form });
@@ -1124,7 +1123,7 @@ async function uploadHomepageBanner(event: Event): Promise<void> {
     clearHomepageBannerPreview();
     platformSettings.value.homepageBanner.bannerImage = data.homepageBanner.bannerImage;
     homepageBannerPreviewUrl.value = URL.createObjectURL(file);
-    settingsMessage.value = "Homepage banner uploaded and platform settings saved.";
+    settingsMessage.value = "Homepage banner uploaded and settings saved.";
   } catch (caught) {
     settingsMessage.value = caught instanceof Error ? caught.message : "Could not upload homepage banner";
   } finally {
@@ -1139,7 +1138,7 @@ async function removeHomepageBanner(): Promise<void> {
   settingsMessage.value = "";
   try {
     platformSettings.value.homepageBanner.bannerImage = "";
-    const saved = await api("/api/admin/settings", {
+    await persistHomepageBannerSettings();
       method: "PATCH",
       body: JSON.stringify(platformSettings.value),
     });
