@@ -765,9 +765,6 @@ export function createAdminRouter(uploadDir) {
 
     if (previousImage && previousImage !== banner.bannerImage) {
       removeHomepageBannerImage(previousImage);
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
     }
     res.json({ homepageBanner: banner });
   });
