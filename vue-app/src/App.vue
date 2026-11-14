@@ -4434,4 +4434,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   color: #fff;
   background: #168446;
 }
+.page-home .home-game-card {
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 16px;
+  box-shadow: 0 7px 17px rgb(24 56 33 / 17%);
+}
+.page-home .home-game-card:hover {
+  box-shadow: 0 13px 26px rgb(24 56 33 / 22%);
+}
 </style>
