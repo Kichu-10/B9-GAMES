@@ -4442,4 +4442,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .page-home .home-game-card:hover {
   box-shadow: 0 13px 26px rgb(24 56 33 / 22%);
 }
+.page-home .home-popular-badge {
+  border: 1px solid rgb(255 255 255 / 45%);
+  background: linear-gradient(120deg, #d68d2c, #edaa46);
+  box-shadow: 0 3px 8px rgb(77 42 5 / 25%);
+}
 </style>
