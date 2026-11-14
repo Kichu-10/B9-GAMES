@@ -15,6 +15,7 @@ export const router = createRouter({
     { path: "/promotions", component: App },
     { path: "/rewards", component: App },
     { path: "/wallet", redirect: { path: "/account", query: { section: "wallet" } } },
+    { path: "/withdraw", redirect: { path: "/account", query: { section: "withdrawal" } } },
     { path: "/agent", component: () => import("./AgentApp.vue") },
     { path: "/account", component: App },
     { path: "/:pathMatch(.*)*", redirect: "/" },

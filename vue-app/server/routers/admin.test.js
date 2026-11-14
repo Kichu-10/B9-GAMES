@@ -70,3 +70,45 @@ test("admin transaction and support queues include records beyond the former 100
   assert.equal(tickets.body.tickets.length, 101);
   assert.equal(tickets.body.tickets.some((item) => item.id === firstTicketId), true);
 });
+
+test("admin can save and upload homepage banner content", async () => {
+  const homepageBanner = {
+    active: true,
+    title: "Welcome",
+    description: "Explore new games",
+    buttonLabel: "Play now",
+    buttonLink: "/games",
+    bannerImage: "",
+    bannerIncludesText: false,
+  };
+  await request(app)
+    .patch("/api/admin/settings")
+    .set("Authorization", `Bearer ${adminToken}`)
+    .send({ homepageBanner: { ...homepageBanner, buttonLink: "https://example.com" }, promotions: [] })
+    .expect(400);
+
+  const saved = await request(app)
+    .patch("/api/admin/settings")
+    .set("Authorization", `Bearer ${adminToken}`)
+    .send({ homepageBanner, promotions: [] })
+    .expect(200);
+  assert.deepEqual(saved.body.settings.homepageBanner, homepageBanner);
+
+  const uploaded = await request(app)
+    .post("/api/admin/homepage/banner")
+    .set("Authorization", `Bearer ${adminToken}`)
+    .attach("banner", Buffer.from([0xff, 0xd8, 0xff, 0x00]), { filename: "homepage.jpg", contentType: "image/jpeg" })
+    .expect(200);
+  const filename = uploaded.body.homepageBanner.bannerImage;
+  assert.match(filename, /^homepage-[a-f0-9-]+\.jpg$/i);
+  assert.equal(fs.existsSync(path.join(tempDir, "uploads", "homepage-banners", filename)), true);
+
+  homepageBanner.bannerImage = "";
+  const removed = await request(app)
+    .patch("/api/admin/settings")
+    .set("Authorization", `Bearer ${adminToken}`)
+    .send({ homepageBanner, promotions: [] })
+    .expect(200);
+  assert.deepEqual(removed.body.settings.homepageBanner, homepageBanner);
+  assert.equal(fs.existsSync(path.join(tempDir, "uploads", "homepage-banners", filename)), false);
+});

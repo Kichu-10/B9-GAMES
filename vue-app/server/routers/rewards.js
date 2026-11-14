@@ -8,6 +8,15 @@ import { validate } from "../middleware/validate.js";
 const bonusCodeSchema = z.object({
   code: z.string().trim().min(3).max(32).regex(/^[A-Z0-9_-]+$/i),
 });
+const DAILY_CHECKIN_MINIMUM_DEPOSIT = 500;
+
+function hasQualifyingDailyDeposit(userId) {
+  return Boolean(db.prepare(`
+    SELECT id FROM transactions
+    WHERE user_id = ? AND type = 'deposit' AND status = 'approved' AND amount_cents >= ?
+    LIMIT 1
+  `).get(userId, toCents(DAILY_CHECKIN_MINIMUM_DEPOSIT)));
+}
 
 function dateInTimezone(date, timeZone) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -29,6 +38,7 @@ function previousUtcDate(value) {
 function getDailyRewardState(userId, settings, now = new Date()) {
   const today = dateInTimezone(now, settings.dailyResetTimezone);
   const dailyRewards = settings.dailyRewards;
+  const depositEligible = hasQualifyingDailyDeposit(userId);
   const lastClaim = db.prepare(`
     SELECT claim_date AS claimDate, streak_day AS streakDay, amount_cents AS amountCents
     FROM daily_reward_claims WHERE user_id = ? ORDER BY claim_date DESC LIMIT 1
@@ -54,7 +64,9 @@ function getDailyRewardState(userId, settings, now = new Date()) {
     today,
     claimedToday,
     enabled: settings.dailyEnabled,
-    claimable: settings.dailyEnabled && !claimedToday,
+    depositEligible,
+    minimumDeposit: DAILY_CHECKIN_MINIMUM_DEPOSIT,
+    claimable: settings.dailyEnabled && depositEligible && !claimedToday,
     claimDay,
     claimAmount: dailyRewards[claimDay - 1],
     streakDays: claimedToday || continuesStreak || (lastClaim && !settings.streakResetOnMissedDay)
@@ -190,6 +202,12 @@ export function createRewardsRouter() {
       if (!settings.dailyEnabled) {
         db.exec("ROLLBACK");
         return res.status(409).json({ error: "Daily rewards are currently disabled" });
+      }
+      if (!hasQualifyingDailyDeposit(req.user.id)) {
+        db.exec("ROLLBACK");
+        return res.status(403).json({
+          error: `An approved deposit of at least ${DAILY_CHECKIN_MINIMUM_DEPOSIT} is required to claim daily check-in`,
+        });
       }
       claimDate = dateInTimezone(now, settings.dailyResetTimezone);
       const existingClaim = db.prepare(`

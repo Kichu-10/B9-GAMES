@@ -71,6 +71,29 @@
         </div>
       </section>
 
+      <section
+        v-else-if="homepageBanner.active && homepageBanner.imageUrl"
+        class="homepage-custom-banner"
+        :class="{ 'homepage-custom-banner--creative': homepageBanner.bannerIncludesText }"
+        aria-label="Homepage banner"
+      >
+        <img class="homepage-custom-banner-image" :src="homepageBanner.imageUrl" alt="" loading="eager" fetchpriority="high" decoding="async" />
+        <div v-if="!homepageBanner.bannerIncludesText" class="homepage-custom-banner-copy">
+          <h2>{{ homepageBanner.title || "Welcome to B9 Games" }}</h2>
+          <p v-if="homepageBanner.description">{{ homepageBanner.description }}</p>
+          <button v-if="homepageBanner.buttonLink" class="homepage-custom-banner-button" @click="navigateTo(homepageBanner.buttonLink)">
+            {{ homepageBanner.buttonLabel || "Explore games" }}
+          </button>
+        </div>
+        <button
+          v-else-if="homepageBanner.buttonLink"
+          type="button"
+          class="homepage-custom-banner-full-link"
+          :aria-label="homepageBanner.buttonLabel || homepageBanner.title || 'Explore B9 Games'"
+          @click="navigateTo(homepageBanner.buttonLink)"
+        ></button>
+      </section>
+
       <BonusBanner
         v-else
         :slides="bannerSlides"
@@ -435,12 +458,6 @@
         <p v-else-if="promotionsLoading" class="empty-state">Loading offers...</p>
         <p v-else-if="promotionsError" class="empty-state">{{ promotionsError }}</p>
         <template v-else>
-          <header class="promotions-intro-card">
-            <div class="promotions-intro-copy">
-              <h1>Promotions</h1>
-            </div>
-          </header>
-
           <article v-if="activePromotions[0]" class="promotion-feature-card">
             <span class="promotion-feature-icon"><Gift :size="20" /></span>
             <div class="promotion-feature-copy">
@@ -504,14 +521,10 @@
         </template>
       </section>
 
-      <section v-else-if="currentPage === 'wallet' || (currentPage === 'account' && profileSection === 'wallet')" class="page-section wallet-page">
-        <div v-if="walletRequestType === 'withdrawal' || !signedIn" class="page-heading">
-          <h1>Wallet</h1>
-          <p>Track your balance, fund your game wallet, and manage deposit and withdrawal requests.</p>
-        </div>
-        <nav v-if="walletRequestType === 'withdrawal' || !signedIn" class="profile-tabs" aria-label="Account sections" role="tablist">
-          <button type="button" role="tab" :aria-selected="walletRequestType === 'withdrawal'" :class="{ active: walletRequestType === 'withdrawal' }" @click="selectAccountSection('withdrawal')">Withdraw</button>
-          <button type="button" role="tab" :aria-selected="walletRequestType === 'deposit'" :class="{ active: walletRequestType === 'deposit' }" @click="selectAccountSection('wallet')"><Wallet :size="16" />Wallet</button>
+      <section v-else-if="currentPage === 'wallet' || (currentPage === 'account' && ['wallet', 'withdrawal'].includes(profileSection))" class="page-section wallet-page">
+        <nav class="profile-tabs" aria-label="Wallet sections" role="tablist">
+          <button type="button" role="tab" :aria-selected="profileSection === 'withdrawal'" :class="{ active: profileSection === 'withdrawal' }" @click="selectAccountSection('withdrawal')"><ArrowDownLeft :size="16" />Withdraw</button>
+          <button type="button" role="tab" :aria-selected="profileSection === 'wallet'" :class="{ active: profileSection === 'wallet' }" @click="selectAccountSection('wallet')"><Wallet :size="16" />Wallet</button>
         </nav>
         <div v-if="!signedIn" class="signed-out-card">
           <Wallet :size="30" />
@@ -545,11 +558,6 @@
                 <button type="button" class="wallet-back-button" aria-label="Back to account" @click="navigateTo('/account')"><ChevronLeft :size="19" /></button>
                 <h2>{{ walletRequestType === "deposit" ? "Deposit" : "Withdraw" }}</h2>
               </div>
-              <button type="button" class="wallet-switch-button" @click="walletRequestType = walletRequestType === 'deposit' ? 'withdrawal' : 'deposit'; depositDetailsExpanded = false">
-                <ArrowUpRight v-if="walletRequestType === 'deposit'" :size="15" />
-                <ArrowDownLeft v-else :size="15" />
-                {{ walletRequestType === "deposit" ? "Withdraw" : "Deposit" }}
-              </button>
             </header>
             <p v-if="walletKycVerified && walletRequestType === 'withdrawal'" class="wallet-hint">Requests are reviewed by an administrator before your balance changes.</p>
             <div v-if="!walletKycVerified" class="wallet-kyc-gate" role="status">
@@ -721,7 +729,7 @@
         </template>
       </section>
 
-      <section v-else-if="(currentPage === 'account' && profileSection !== 'wallet') || currentPage === 'rewards'" class="page-section account-page">
+      <section v-else-if="(currentPage === 'account' && profileSection === 'profile') || currentPage === 'rewards'" class="page-section account-page">
         <div v-if="currentPage === 'rewards'" class="page-heading page-heading-simple">
           <h1>Rewards</h1>
         </div>
@@ -733,7 +741,7 @@
           <button type="button" role="tab" :aria-selected="rewardsTab === 'daily'" :class="{ active: rewardsTab === 'daily' }" @click="rewardsTab = 'daily'"><CalendarDays :size="16" />Daily</button>
           <button type="button" role="tab" :aria-selected="rewardsTab === 'vip'" :class="{ active: rewardsTab === 'vip' }" @click="rewardsTab = 'vip'"><BadgeCheck :size="16" />VIP</button>
           <button type="button" role="tab" :aria-selected="rewardsTab === 'code'" :class="{ active: rewardsTab === 'code' }" @click="rewardsTab = 'code'"><ShieldCheck :size="16" />Bonus code</button>
-          <button type="button" role="tab" :aria-selected="rewardsTab === 'referrals'" :class="{ active: rewardsTab === 'referrals' }" @click="rewardsTab = 'referrals'"><Users :size="16" />Referrals</button>
+          <button type="button" role="tab" :aria-selected="rewardsTab === 'referrals'" :class="{ active: rewardsTab === 'referrals' }" @click="rewardsTab = 'referrals'"><Users :size="16" />Referral code</button>
         </nav>
         <template v-if="signedIn">
           <template v-if="currentPage === 'rewards'">
@@ -748,7 +756,7 @@
                 <article class="daily-checkin-card">
                   <div class="daily-checkin-heading">
                     <span class="daily-checkin-icon"><CalendarDays :size="26" /></span>
-                    <div><h2>Daily check-in</h2><p>{{ rewardsDashboard.daily.claimedToday ? "Today's reward has been claimed." : `Day ${rewardsDashboard.daily.claimDay} of 7 is ready to claim.` }}</p></div>
+                    <div><h2>Daily check-in</h2><p>{{ rewardsDashboard.daily.claimedToday ? "Today's reward has been claimed." : !rewardsDashboard.daily.depositEligible ? `An approved deposit of ${currencyLabel} ${formatAmount(rewardsDashboard.daily.minimumDeposit)} is required to unlock check-in.` : `Day ${rewardsDashboard.daily.claimDay} of 7 is ready to claim.` }}</p></div>
                     <strong class="daily-streak-count">{{ rewardsDashboard.daily.streakDays }}/7</strong>
                   </div>
                   <div class="daily-reward-days" aria-label="Seven day reward streak">
@@ -767,8 +775,9 @@
                     </div>
                   </div>
                   <button class="daily-claim-button" type="button" :disabled="!rewardsDashboard.daily.claimable || dailyClaiming" @click="claimDailyReward">
-                    {{ dailyClaiming ? "Claiming…" : !rewardsDashboard.daily.enabled ? "Daily rewards unavailable" : rewardsDashboard.daily.claimedToday ? "Claimed today" : `Claim Day ${rewardsDashboard.daily.claimDay}` }}
+                    {{ dailyClaiming ? "Claiming…" : !rewardsDashboard.daily.enabled ? "Daily rewards unavailable" : rewardsDashboard.daily.claimedToday ? "Claimed today" : !rewardsDashboard.daily.depositEligible ? "Deposit to unlock" : `Claim Day ${rewardsDashboard.daily.claimDay}` }}
                   </button>
+                  <button v-if="rewardsDashboard.daily.enabled && !rewardsDashboard.daily.claimedToday && !rewardsDashboard.daily.depositEligible" class="avatar-upload-button" type="button" @click="selectAccountSection('wallet')">Go to Wallet</button>
                   <p class="daily-reset-note">{{ rewardsDashboard.daily.streakResetOnMissedDay ? "A missed day resets your streak to Day 1." : "A missed day pauses your streak." }} Claims reset at midnight {{ rewardsDashboard.daily.resetTimezone }}.</p>
                   <p v-if="dailyClaimError" class="referral-feedback error" role="alert">{{ dailyClaimError }}</p>
                 </article>
@@ -812,7 +821,7 @@
                 <div class="referral-card-heading">
                   <div class="account-profile-head">
                     <Gift :size="18" />
-                    <div><strong>Refer a friend</strong><small>Share your code and track rewards in one place.</small></div>
+                    <div><strong>Invite friends</strong><small>Share your referral code and earn rewards when friends join.</small></div>
                   </div>
                   <div class="referral-reward-summary">
                     <span>{{ referralData?.pendingCount ?? 0 }} pending</span>
@@ -827,6 +836,10 @@
                 <div class="referral-card-actions">
                   <button type="button" class="avatar-upload-button" :disabled="!referralData?.code" @click="copyReferralLink">Copy invite link</button>
                   <button type="button" class="avatar-upload-button" :disabled="!referralData?.code" @click="shareReferralLink">Share</button>
+                </div>
+                <div class="referral-list-heading">
+                  <strong>Invitation list</strong>
+                  <span>{{ referralData?.referrals.length ?? 0 }} invited</span>
                 </div>
                 <p v-if="referralLoading" class="referral-feedback" role="status">Loading referral activity…</p>
                 <p v-else-if="referralError" class="referral-feedback error" role="alert">{{ referralError }}</p>
@@ -922,10 +935,9 @@
       @navigate="navigateTo"
     />
 
-    <div v-if="modal" class="modal-backdrop" :class="{ 'notification-backdrop': modal === 'inbox', 'daily-checkin-backdrop': modal === 'daily-checkin' }" @click="modal = null">
-      <section class="modal-sheet" :class="{ 'notification-dialog': modal === 'inbox', 'daily-checkin-dialog': modal === 'daily-checkin' }" role="dialog" aria-modal="true" :aria-label="modalTitle" @click.stop>
+    <div v-if="modal" class="modal-backdrop" :class="{ 'notification-backdrop': modal === 'inbox' }" @click="modal = null">
+      <section class="modal-sheet" :class="{ 'notification-dialog': modal === 'inbox' }" role="dialog" aria-modal="true" :aria-label="modalTitle" @click.stop>
         <div class="modal-heading">
-          <span v-if="modal === 'inbox'" class="notification-heading-icon"><Bell :size="19" /></span>
           <h2>{{ modalTitle }}</h2>
           <button class="close-button" aria-label="Close dialog" @click="modal = null"><X :size="22" /></button>
         </div>
@@ -949,39 +961,6 @@
           </button>
           </template>
         </form>
-
-        <div v-else-if="modal === 'daily-checkin' && rewardsDashboard" class="daily-checkin-popup">
-          <div class="daily-checkin-popup-days" aria-label="Seven day check-in rewards">
-            <button
-              v-for="day in dailyCheckinDays"
-              :key="day.day"
-              type="button"
-              class="daily-checkin-tile"
-              :class="{ current: day.current, completed: day.completed, locked: day.locked }"
-              :disabled="!day.current || !rewardsDashboard.daily.claimable || dailyClaiming"
-              :aria-label="`Day ${day.day}: ${currencyLabel} ${formatAmount(day.reward)}${day.completed ? ', claimed' : day.locked ? ', locked' : ', ready to claim'}`"
-              @click="claimDailyReward"
-            >
-              <span class="daily-checkin-day-label">DAY {{ day.day }}</span>
-              <span class="daily-chest" aria-hidden="true">
-                <img :src="dailyRewardChest" alt="" />
-                <Lock v-if="day.locked" class="daily-chest-locked-mark" :size="12" />
-                <Check v-else-if="day.completed" class="daily-chest-completed-mark" :size="12" />
-              </span>
-              <span class="daily-checkin-amount">{{ currencyLabel }} {{ formatAmount(day.reward) }}</span>
-            </button>
-          </div>
-          <button
-            type="button"
-            class="daily-checkin-claim-button"
-            :disabled="!rewardsDashboard.daily.claimable || dailyClaiming"
-            @click="claimDailyReward"
-          >
-            {{ dailyClaiming ? "Claiming…" : rewardsDashboard.daily.claimedToday ? "Claimed today" : `Claim Day ${rewardsDashboard.daily.claimDay}` }}
-            <span v-if="rewardsDashboard.daily.claimable">{{ currencyLabel }} {{ formatAmount(rewardsDashboard.daily.claimAmount) }}</span>
-          </button>
-          <p v-if="dailyClaimError" class="daily-checkin-error" role="alert">{{ dailyClaimError }}</p>
-        </div>
 
         <form v-else-if="modal === 'auth'" class="modal-content auth-form" @submit.prevent="submitAuth">
           <div class="wallet-tabs">
@@ -1010,7 +989,8 @@
         <ul v-else-if="modal === 'menu'" class="menu-list">
           <li class="menu-section-label">My account</li>
           <li><button @click="navigateTo('/account')"><UserRound :size="20" />Profile &amp; account</button></li>
-          <li><button @click="navigateTo('/wallet')"><Wallet :size="20" />Deposit &amp; withdraw</button></li>
+          <li><button @click="selectAccountSection('wallet')"><Wallet :size="20" />Wallet &amp; deposits</button></li>
+          <li><button @click="selectAccountSection('withdrawal')"><ArrowDownLeft :size="20" />Withdraw</button></li>
           <li><button @click="openTransactionHistory()"><Mail :size="20" />Transaction history</button></li>
           <li v-if="signedIn && user?.kycStatus !== 'verified'"><button @click="openKyc"><UserRound :size="20" />KYC verification</button></li>
           <li class="menu-section-label">Discover</li>
@@ -1178,8 +1158,8 @@
             <span><strong>Account notifications</strong><small>Updates about your account and wallet</small></span>
             <b>{{ inboxMessages.length }}</b>
           </div>
-          <p v-if="inboxLoading" class="empty-state">Loading notifications...</p>
-          <p v-else-if="inboxError" class="empty-state" role="alert">{{ inboxError }}</p>
+          <p v-if="inboxLoading" class="empty-state notification-status">Loading notifications...</p>
+          <p v-else-if="inboxError" class="empty-state notification-status" role="alert">{{ inboxError }}</p>
           <p v-else-if="inboxMessages.length === 0" class="notification-empty">
             <span><Bell :size="21" /></span>
             <strong>You’re all caught up</strong>
@@ -1216,13 +1196,12 @@ import BonusBanner from "./components/BonusBanner.vue";
 import {
   ArrowDownLeft, ArrowUp, ArrowUpRight, BadgeCheck, Bell, CalendarDays, Check, ChevronLeft,
   ChevronRight, CircleAlert, CircleCheck, Clock3, Copy, Fish, Flame, Gamepad2, Gift,
-  Landmark, LifeBuoy, Lock, LogOut, Mail, Search, ShieldCheck, Smartphone, Spade, Star,
+  Landmark, LifeBuoy, LogOut, Mail, Search, ShieldCheck, Smartphone, Spade, Star,
   UserRound, Users, Volume2, Wallet, X,
 } from "lucide-vue-next";
 import fish from "./assets/g-fish.webp";
 import slot from "./assets/g-slot.webp";
 import b9Logo from "./assets/b9-logo.webp";
-import dailyRewardChest from "./assets/daily-reward-chest.png";
 import jackpotBanner from "./assets/jackpot-banner.webp";
 import popularCategoryLogo from "./assets/category-icons/01_popular.png";
 import pgSlotCategoryLogo from "./assets/category-icons/02_pg_slot.png";
@@ -1234,15 +1213,15 @@ import inOutLogo from "./assets/provider-logos/inout.svg";
 import phonePeLogo from "./assets/provider-logos/phonepe.png";
 import paytmLogo from "./assets/provider-logos/paytm.png";
 
-type Modal = "menu" | "promo" | "profile" | "profile-actions" | "inbox" | "daily-checkin" | "auth" | "kyc" | "transactions" | "favorites" | "support" | "game-funding" | null;
+type Modal = "menu" | "promo" | "profile" | "profile-actions" | "inbox" | "auth" | "kyc" | "transactions" | "favorites" | "support" | "game-funding" | null;
 type AuthUser = { id: string; username: string; phone: string; email: string; country: string; kycStatus: string; role: "user" | "agent" | "admin"; balance: number; status: string; createdAt: string; lastLoginAt: string | null; googlePictureUrl?: string; referralCode?: string };
 type WalletTransaction = { id: string; type: "deposit" | "withdrawal"; amount: number; status: string; createdAt: string; paymentMethod?: string; paymentReference?: string; paymentNote?: string };
-type ProfileShortcutAction = "wallet" | "promotions" | "transactions" | "profile" | "security" | "notifications" | "favorites" | "support";
+type ProfileShortcutAction = "wallet" | "withdrawal" | "promotions" | "transactions" | "profile" | "security" | "notifications" | "favorites" | "support";
 type Referral = { id: string; username: string; status: string; reward: number; createdAt: string; reviewedAt: string | null; reviewNote: string };
 type ReferralData = { code: string; referrals: Referral[]; pendingCount: number; approvedRewards: number };
 type RewardsDashboard = {
   daily: {
-    today: string; claimedToday: boolean; claimable: boolean; claimDay: number; claimAmount: number;
+    today: string; claimedToday: boolean; depositEligible: boolean; minimumDeposit: number; claimable: boolean; claimDay: number; claimAmount: number;
     enabled: boolean; streakDays: number; rewards: number[]; resetTimezone: string; streakResetOnMissedDay: boolean;
     history: { claimDate: string; day: number; amount: number }[];
   };
@@ -1365,6 +1344,15 @@ const gameFullscreen = ref(false);
 let gameFrameLoadTimer: ReturnType<typeof setTimeout> | undefined;
 const balance = ref(8891.2);
 const jackpot = ref(10799004.2);
+const homepageBanner = ref({
+  active: false,
+  title: "",
+  description: "",
+  buttonLabel: "",
+  buttonLink: "/games",
+  imageUrl: "",
+  bannerIncludesText: false,
+});
 const favorites = ref<string[]>([]);
 const query = ref("");
 const modal = ref<Modal>(null);
@@ -1422,7 +1410,6 @@ const rewardsError = ref("");
 const dailyClaimError = ref("");
 const rewardsTab = ref<RewardsTab>("daily");
 const dailyClaiming = ref(false);
-const dailyCheckinLoading = ref(false);
 const bonusCodeInput = ref("");
 const bonusCodePreview = ref<{ code: string; amount: number; terms: string; expiresAt: string } | null>(null);
 const bonusCodeChecking = ref(false);
@@ -1461,6 +1448,7 @@ const supportMessage = ref("");
 const supportLoading = ref(false);
 const profileShortcuts: { title: string; icon: typeof Wallet; action: ProfileShortcutAction }[] = [
   { title: "Wallet", icon: Wallet, action: "wallet" },
+  { title: "Withdraw", icon: ArrowDownLeft, action: "withdrawal" },
   { title: "Promotions", icon: Gift, action: "promotions" },
   { title: "Transactions", icon: ArrowUpRight, action: "transactions" },
   { title: "Profile details", icon: UserRound, action: "profile" },
@@ -1489,7 +1477,7 @@ const profileSection = computed(() => {
   if (route.path === "/rewards") return "rewards";
   if (route.path === "/wallet") return "wallet";
   const section = route.query.section;
-  return section === "wallet" ? section : "profile";
+  return section === "wallet" || section === "withdrawal" ? section : "profile";
 });
 const pageMetadata = computed(() => {
   const metadata: Record<string, { title: string; description: string }> = {
@@ -1509,6 +1497,10 @@ const pageMetadata = computed(() => {
       title: "Wallet | B9 Game",
       description: "Manage your B9 Game balance, deposits, withdrawals, and transactions.",
     },
+    withdrawal: {
+      title: "Withdraw | B9 Game",
+      description: "Request a withdrawal from your B9 Game wallet and review recent activity.",
+    },
     rewards: {
       title: "Rewards | B9 Game",
       description: "Share your B9 Game invite code and track referrals and reward approvals.",
@@ -1518,23 +1510,11 @@ const pageMetadata = computed(() => {
       description: "Manage your B9 Game account, profile, and verification details.",
     },
   };
+  if (currentPage.value === "account" && profileSection.value === "wallet") return metadata.wallet;
+  if (currentPage.value === "account" && profileSection.value === "withdrawal") return metadata.withdrawal;
   return metadata[currentPage.value] || metadata.home;
 });
 const activePromotions = computed(() => promotions.value.filter((promotion) => promotion.active));
-const dailyCheckinDays = computed(() => {
-  const daily = rewardsDashboard.value?.daily;
-  if (!daily) return [];
-  return daily.rewards.map((reward, index) => {
-    const day = index + 1;
-    return {
-      day,
-      reward,
-      completed: daily.claimedToday ? day <= daily.claimDay : day < daily.claimDay,
-      current: daily.claimable && day === daily.claimDay,
-      locked: day > daily.claimDay,
-    };
-  });
-});
 const depositPromotions = computed(() => activePromotions.value.filter(promotionMentionsDeposit));
 const otherPromotions = computed(() => activePromotions.value.filter((promotion) => !promotionMentionsDeposit(promotion)));
 const visiblePromotions = computed(() => {
@@ -1599,7 +1579,6 @@ watch([selectedCategory, selectedProvider, query, gameSort, gameLobbyTab], () =>
 });
 const modalTitle = computed(() => {
   if (modal.value === "game-funding") return "Choose game funding";
-  if (modal.value === "daily-checkin") return "Daily checkin";
   if (modal.value === "promo") return "Promotions";
   if (modal.value === "auth") return authMode.value === "login" ? "Sign In" : "Create Account";
   if (modal.value === "kyc") return "KYC Verification";
@@ -1646,8 +1625,8 @@ watch(() => [route.path, signedIn.value] as const, ([, isSignedIn]) => {
 watch(() => [route.path, signedIn.value] as const, ([path, isSignedIn]) => {
   if (path === "/rewards" && isSignedIn) {
     void loadReferralData();
-    if (!dailyCheckinLoading.value && modal.value !== "daily-checkin") void loadRewardsDashboard();
-  } else if (modal.value !== "daily-checkin" && !dailyCheckinLoading.value) {
+    void loadRewardsDashboard();
+  } else {
     referralRequestId += 1;
     referralData.value = null;
     referralLoading.value = false;
@@ -1661,10 +1640,17 @@ watch(() => route.path, (path) => {
   if (path === "/rewards") rewardsTab.value = "daily";
 });
 
+watch(profileSection, (section) => {
+  if (section !== "wallet" && section !== "withdrawal") return;
+  walletRequestType.value = section === "withdrawal" ? "withdrawal" : "deposit";
+  depositDetailsExpanded.value = false;
+  showDepositPaymentDetails.value = false;
+}, { immediate: true });
+
 watch(() => [route.path, profileSection.value, signedIn.value] as const, ([path, section, isSignedIn]) => {
-  if ((path === "/wallet" || (path === "/account" && section === "wallet")) && isSignedIn) {
+  if ((path === "/wallet" || (path === "/account" && (section === "wallet" || section === "withdrawal"))) && isSignedIn) {
     void refreshGameWallet();
-    void loadWalletTransactions();
+    if (section === "withdrawal") void loadWalletTransactions();
   }
 });
 
@@ -1706,8 +1692,10 @@ onMounted(async () => {
   if ((currentPage.value === "games" && !showAllGames.value) || currentPage.value === "home") void loadGameSections();
   else void loadGames();
   token.value = localStorage.getItem("b9_token") || "";
-  if (currentPage.value === "wallet" || (currentPage.value === "account" && profileSection.value === "wallet")) {
-    void loadPaymentDetails();
+  if (currentPage.value === "wallet" || (currentPage.value === "account" && profileSection.value === "wallet")) void loadPaymentDetails();
+  if (currentPage.value === "account" && profileSection.value === "withdrawal" && signedIn.value) {
+    void refreshGameWallet();
+    void loadWalletTransactions();
   }
   const settingsRequest = fetch("/api/platform/settings")
     .then((response) => {
@@ -1720,6 +1708,9 @@ onMounted(async () => {
       if (typeof settings.jackpotAmount === "number" && Number.isFinite(settings.jackpotAmount)) {
         jackpot.value = settings.jackpotAmount;
       }
+      if (settings.homepageBanner) {
+        homepageBanner.value = { ...homepageBanner.value, ...settings.homepageBanner };
+      }
       googleClientId.value = settings.googleClientId || "";
     })
     .catch(() => {
@@ -1729,7 +1720,7 @@ onMounted(async () => {
   await Promise.all([settingsRequest, sessionRequest]);
   if (signedIn.value) {
     startInboxPolling();
-    void showDailyCheckin();
+    void showUnreadNotifications();
   }
 });
 onUnmounted(() => {
@@ -1875,6 +1866,11 @@ function startInboxPolling(): void {
   inboxTimer = setInterval(() => {
     if (document.visibilityState === "visible") void refreshInbox();
   }, 5000);
+}
+
+async function showUnreadNotifications(): Promise<void> {
+  await refreshInbox();
+  if (unreadCount.value > 0 && modal.value === null) await openInbox();
 }
 
 async function openInbox(): Promise<void> {
@@ -2194,7 +2190,7 @@ async function selectAccountSection(section: "profile" | "wallet" | "withdrawal"
     depositDetailsExpanded.value = false;
     showDepositPaymentDetails.value = false;
   }
-  const query = section === "profile" ? {} : { section: "wallet" };
+  const query = section === "profile" ? {} : { section };
   await router.push({ path: "/account", query });
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -2643,7 +2639,7 @@ async function googleLogin(): Promise<void> {
           balance.value = data.user.balance;
           modal.value = null;
           startInboxPolling();
-          void showDailyCheckin();
+          void showUnreadNotifications();
           authReferralCode.value = "";
           notify(`Welcome, ${data.user.username}!`);
         } catch (error) {
@@ -2731,7 +2727,7 @@ async function submitAuth(): Promise<void> {
     balance.value = data.user.balance;
     modal.value = null;
     startInboxPolling();
-    void showDailyCheckin();
+    void showUnreadNotifications();
     authPassword.value = "";
     if (authMode.value === "register") {
       authCountry.value = "";
@@ -2797,6 +2793,9 @@ function handleProfileShortcut(action: ProfileShortcutAction): void {
   switch (action) {
     case "wallet":
       void selectAccountSection("wallet");
+      break;
+    case "withdrawal":
+      void selectAccountSection("withdrawal");
       break;
     case "promotions":
       navigateTo("/promotions");
@@ -2875,24 +2874,6 @@ async function loadRewardsDashboard(force = false): Promise<boolean> {
   }
 }
 
-async function showDailyCheckin(): Promise<void> {
-  if (!signedIn.value) return;
-  dailyCheckinLoading.value = true;
-  dailyClaimError.value = "";
-  try {
-    const loaded = await loadRewardsDashboard(true);
-    if (!loaded) {
-      if (rewardsError.value) notify(`Could not open daily check-in: ${rewardsError.value}`);
-      return;
-    }
-    if (rewardsDashboard.value?.daily.enabled && modal.value === null) {
-      modal.value = "daily-checkin";
-    }
-  } finally {
-    dailyCheckinLoading.value = false;
-  }
-}
-
 async function claimDailyReward(): Promise<void> {
   if (!rewardsDashboard.value?.daily.claimable || dailyClaiming.value) return;
   dailyClaiming.value = true;
@@ -2902,10 +2883,10 @@ async function claimDailyReward(): Promise<void> {
     balance.value = result.balance;
     if (user.value) user.value.balance = result.balance;
     notify(`${currencyLabel.value} ${formatAmount(result.amount)} daily reward credited`);
-    await loadRewardsDashboard(modal.value === "daily-checkin" || route.path === "/rewards");
+    await loadRewardsDashboard(route.path === "/rewards");
   } catch (error) {
     dailyClaimError.value = error instanceof Error ? error.message : "Could not claim today's reward";
-    await loadRewardsDashboard(modal.value === "daily-checkin" || route.path === "/rewards");
+    await loadRewardsDashboard(route.path === "/rewards");
   } finally {
     dailyClaiming.value = false;
   }
@@ -3121,9 +3102,23 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .hero-dots { display: flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 999px; background: rgb(4 40 20 / 42%); backdrop-filter: blur(4px); }
 .hero-dots button { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: rgb(255 255 255 / 55%); cursor: pointer; transition: width .18s ease, background .18s ease; }
 .hero-dots button.selected { width: 18px; border-radius: 9px; background: #fff; }
+.homepage-custom-banner { position: relative; max-height: 320px; aspect-ratio: 1240 / 520; overflow: hidden; border-radius: 20px; color: #fff; background: #075e35; box-shadow: 0 3px 12px rgb(32 98 51 / 5%); }
+.homepage-custom-banner::after { position: absolute; inset: 0; content: ""; background: linear-gradient(90deg, rgb(3 63 31 / 82%) 0%, rgb(3 63 31 / 42%) 54%, transparent 100%); pointer-events: none; }
+.homepage-custom-banner--creative::after { display: none; }
+.homepage-custom-banner-image { display: block; width: 100%; height: 100%; object-fit: cover; }
+.homepage-custom-banner-copy { position: absolute; z-index: 1; inset: 0 auto 0 0; display: flex; width: min(68%, 680px); flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; padding: clamp(16px, 5vw, 52px); text-shadow: 0 1px 5px rgb(0 40 18 / 38%); }
+.homepage-custom-banner-copy h2 { margin: 0; font-size: clamp(21px, 5vw, 42px); font-weight: 850; line-height: 1.08; }
+.homepage-custom-banner-copy p { max-width: 520px; margin: 0; font-size: clamp(12px, 2.4vw, 17px); line-height: 1.45; }
+.homepage-custom-banner-button { min-height: 38px; margin-top: 5px; padding: 8px 18px; border: 0; border-radius: 999px; color: #075e35; background: #fff; font: inherit; font-size: 13px; font-weight: 800; text-shadow: none; cursor: pointer; }
+.homepage-custom-banner-full-link { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; cursor: pointer; }
+.homepage-custom-banner-full-link:focus-visible { outline: 3px solid #fff; outline-offset: -5px; }
 @media (max-width: 767px) {
   /* Reserve the strip at the bottom of the banner for the slide controls. */
   .hero-copy { padding-bottom: 46px; }
+  .homepage-custom-banner-copy { width: 76%; gap: 6px; padding: 12px 16px; }
+  .homepage-custom-banner-copy h2 { font-size: clamp(17px, 5.4vw, 28px); }
+  .homepage-custom-banner-copy p { font-size: clamp(11px, 3.2vw, 14px); }
+  .homepage-custom-banner-button { min-height: 32px; padding: 6px 13px; font-size: 11px; }
 }
 @media (max-width: 430px) {
   /* Room for the slide controls without crowding the claim button. */
@@ -3299,41 +3294,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .bottom-nav .wallet-circle { display: grid; width: 53px; height: 53px; margin-top: -28px; margin-bottom: 1px; place-items: center; border-radius: 50%; color: #fff; background: #1caf58; box-shadow: 0 3px 8px rgb(29 126 62 / 20%); }
 .modal-backdrop { position: fixed; z-index: 10; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgb(17 35 23 / 55%); }
 .modal-sheet { width: min(100%, 480px); max-height: 82vh; overflow-y: auto; padding: 18px 18px calc(28px + env(safe-area-inset-bottom)); border-radius: 25px 25px 0 0; background: white; }
-.notification-backdrop { align-items: center; padding: 16px; background: rgb(10 31 19 / 58%); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px); }
-.notification-dialog { width: min(520px, 100%); max-height: min(78vh, 650px); padding: 20px; border: 1px solid #d7e8da; border-radius: 22px; background: linear-gradient(155deg, #fff 0%, #fbfefb 70%, #f1f8f2 100%); box-shadow: 0 22px 70px rgb(6 31 16 / 30%); }
-.daily-checkin-backdrop { align-items: center; padding: 16px; background: rgb(7 22 13 / 78%); -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px); }
-.modal-sheet.daily-checkin-dialog { width: min(460px, 100%); max-height: min(88vh, 720px); padding: 18px; border: 1px solid #426b4e; border-radius: 24px; color: #f3fbf4; background: radial-gradient(ellipse at 50% 0%, #1d3d29 0%, #102719 56%, #09170e 100%); box-shadow: 0 24px 80px rgb(0 0 0 / 48%); }
-.daily-checkin-dialog .modal-heading { position: relative; justify-content: center; margin-bottom: 16px; padding: 4px 46px 14px; border-bottom: 1px solid rgb(205 234 211 / 14%); }
-.daily-checkin-dialog .modal-heading h2 { color: #f4fbf5; font-size: 21px; font-weight: 850; text-align: center; text-transform: none; }
-.daily-checkin-dialog .close-button { position: absolute; top: 0; right: 0; width: 38px; height: 38px; border: 1px solid rgb(209 236 215 / 20%); color: #eff8f0; background: rgb(255 255 255 / 8%); }
-.daily-checkin-popup { display: grid; gap: 14px; }
-.daily-checkin-popup-days { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.daily-checkin-tile { position: relative; display: flex; min-width: 0; min-height: 132px; flex-direction: column; align-items: center; justify-content: space-between; gap: 7px; padding: 10px 6px 9px; border: 1px solid #42664b; border-radius: 16px; color: #eaf5ec; background: linear-gradient(155deg, #193724, #10271a); cursor: default; }
-.daily-checkin-tile:last-child { grid-column: 2; }
-.daily-checkin-tile.current { border-color: #b7d6bc; background: linear-gradient(155deg, #315c3c, #1d3b27); box-shadow: 0 0 0 2px rgb(190 223 195 / 10%), 0 8px 20px rgb(0 0 0 / 18%); cursor: pointer; }
-.daily-checkin-tile.completed { border-color: #799b7d; background: linear-gradient(155deg, #244c30, #173522); }
-.daily-checkin-tile.locked { color: #b3bdb4; border-color: #344c39; background: linear-gradient(155deg, #182a1c, #101f15); }
-.daily-checkin-tile:disabled { opacity: 1; }
-.daily-checkin-day-label { color: #e0ece2; font-size: 11px; font-weight: 850; letter-spacing: .1em; }
-.daily-chest { position: relative; display: block; width: 84px; height: 78px; filter: drop-shadow(0 5px 4px rgb(0 0 0 / 30%)); }
-.daily-chest img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.daily-checkin-tile.locked .daily-chest img { opacity: .48; filter: grayscale(.58); }
-.daily-checkin-tile.completed .daily-chest img { filter: drop-shadow(0 0 5px rgb(237 197 99 / 22%)); }
-.daily-chest-locked-mark, .daily-chest-completed-mark { position: absolute; z-index: 4; top: 43px; right: 3px; display: grid; width: 20px; height: 20px; padding: 3px; border: 1px solid #d7e8d8; border-radius: 50%; color: #f6f9f6; background: #537359; }
-.daily-chest-completed-mark { color: #fff; background: #25864a; }
-.daily-checkin-amount { max-width: 100%; overflow: hidden; color: #c8d8cb; font-size: 10px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
-.daily-checkin-tile.current .daily-checkin-amount { color: #fff; }
-.daily-checkin-claim-button { display: flex; min-height: 48px; align-items: center; justify-content: center; gap: 8px; border: 1px solid #7fa687; border-radius: 13px; color: #17321f; background: linear-gradient(110deg, #c2e0c7, #8fc89a); box-shadow: 0 5px 15px rgb(0 0 0 / 18%); font-size: 14px; font-weight: 850; cursor: pointer; }
-.daily-checkin-claim-button span { font-size: 12px; }
-.daily-checkin-claim-button:disabled { border-color: #45554a; color: #b7c3b9; background: #29382d; box-shadow: none; cursor: default; }
-.daily-checkin-error { margin: 0; color: #ffb8a9; font-size: 12px; text-align: center; }
+.notification-backdrop { align-items: center; padding: 16px; background: rgb(7 22 13 / 78%); -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px); }
+.modal-sheet.notification-dialog { width: min(460px, 100%); max-height: min(88vh, 720px); padding: 18px; border: 1px solid #426b4e; border-radius: 24px; color: #f3fbf4; background: radial-gradient(ellipse at 50% 0%, #1d3d29 0%, #102719 56%, #09170e 100%); box-shadow: 0 24px 80px rgb(0 0 0 / 48%); }
 .modal-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .modal-heading h2 { margin: 0; color: #315940; font-size: 19px; text-transform: capitalize; }
-.notification-dialog .modal-heading { justify-content: flex-start; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid #e8f0e9; }
-.notification-dialog .modal-heading h2 { flex: 1; color: #204a31; font-size: 20px; font-weight: 800; text-transform: none; }
-.notification-heading-icon { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border: 1px solid #cce8d3; border-radius: 12px; color: #118044; background: linear-gradient(145deg, #effaf2, #dff3e4); }
+.notification-dialog .modal-heading { position: relative; justify-content: center; margin-bottom: 16px; padding: 4px 46px 14px; border-bottom: 1px solid rgb(205 234 211 / 14%); }
+.notification-dialog .modal-heading h2 { color: #f4fbf5; font-size: 21px; font-weight: 850; text-align: center; text-transform: none; }
 .close-button { display: grid; width: 32px; height: 32px; place-items: center; border: 0; border-radius: 50%; color: #59665d; background: #f0f5f0; }
-.notification-dialog .close-button { width: 36px; height: 36px; border: 1px solid #e2ebe3; }
+.notification-dialog .close-button { position: absolute; top: 0; right: 0; width: 38px; height: 38px; border: 1px solid rgb(209 236 215 / 20%); color: #eff8f0; background: rgb(255 255 255 / 8%); }
 .modal-content { display: flex; flex-direction: column; gap: 12px; }
 .game-funding-shortfall { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid #f0dfc0; border-radius: 12px; color: #795b27; background: #fffaf0; font-size: 13px; line-height: 1.45; }
 .game-funding-shortfall span { color: #7b725f; }
@@ -3362,9 +3330,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .page-heading p { max-width: 560px; margin: 0; color: #748078; font-size: 14px; line-height: 1.5; }
 .eyebrow { color: #23944f; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
 .promotions-page { gap: 16px; }
-.promotions-intro-card { display: flex; min-height: 88px; align-items: center; padding: 16px clamp(18px, 5vw, 28px); border: 1px solid #dcebdd; border-radius: 20px; background: linear-gradient(120deg, #fff 0%, #f3fbf4 65%, #e8f7eb 100%); }
-.promotions-intro-copy { max-width: 620px; }
-.promotions-intro-copy h1 { margin: 0; color: #203c2a; font-size: clamp(26px, 6vw, 36px); letter-spacing: -.045em; }
 .promotion-feature-card { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid #dcebdd; border-radius: 17px; background: #f3faf4; }
 .promotion-feature-icon { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 13px; color: #218c49; background: #e2f2e5; }
 .promotion-feature-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
@@ -3463,26 +3428,27 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .promo-card p { margin: 3px 0 0; color: #707b73; font-size: 12px; }
 .promo-card .primary-button { padding: 7px 12px; font-size: 12px; }
 .profile-info p { margin: 0; font-size: 14px; }
-.message-list { display: grid; max-height: 460px; gap: 10px; overflow-y: auto; }
-.notification-summary { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; padding: 12px; border: 1px solid #dcece0; border-radius: 14px; background: linear-gradient(110deg, #f3fbf5, #fff); }
-.notification-summary-icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 11px; color: #18864a; background: #e2f4e7; }
+.message-list { display: grid; max-height: min(65vh, 520px); gap: 10px; overflow-y: auto; }
+.notification-summary { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; padding: 12px; border: 1px solid #42664b; border-radius: 14px; background: linear-gradient(155deg, #193724, #10271a); }
+.notification-summary-icon { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 11px; color: #d7eadb; background: #315a3b; }
 .notification-summary > span:nth-child(2) { display: grid; flex: 1; gap: 3px; }
-.notification-summary strong { color: #2f4e39; font-size: 12px; }
-.notification-summary small { color: #7a897e; font-size: 11px; }
-.notification-summary > b { display: grid; min-width: 27px; height: 27px; place-items: center; padding: 0 6px; border-radius: 999px; color: #177445; background: #e5f4e8; font-size: 11px; }
-.inbox-message { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: start; column-gap: 10px; row-gap: 4px; padding: 12px; border: 1px solid #e4ece5; border-left: 3px solid #aebbb1; border-radius: 12px; background: #fff; }
-.inbox-message.unread { border-left-color: #22a95a; background: #e5f3e3; }
-.notification-item-icon { display: grid; width: 32px; height: 32px; grid-row: span 2; place-items: center; border: 1px solid #e0ebe2; border-radius: 10px; color: #658070; background: #f5f8f5; }
-.inbox-message.unread .notification-item-icon { border-color: #cbe8d1; color: #158147; background: #effaf1; }
+.notification-summary strong { color: #e6f2e8; font-size: 12px; }
+.notification-summary small { color: #b4c7b8; font-size: 11px; }
+.notification-summary > b { display: grid; min-width: 27px; height: 27px; place-items: center; padding: 0 6px; border-radius: 999px; color: #e5f4e8; background: #315a3b; font-size: 11px; }
+.inbox-message { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: start; column-gap: 10px; row-gap: 4px; padding: 12px; border: 1px solid #344d39; border-left: 3px solid #637968; border-radius: 12px; background: linear-gradient(155deg, #172c1d, #102117); }
+.inbox-message.unread { border-color: #66836b; border-left-color: #8dbd94; background: linear-gradient(155deg, #284a30, #1d3b27); }
+.notification-item-icon { display: grid; width: 32px; height: 32px; grid-row: span 2; place-items: center; border: 1px solid #435c48; border-radius: 10px; color: #afc5b3; background: #223b29; }
+.inbox-message.unread .notification-item-icon { border-color: #759d7b; color: #e1f1e4; background: #315b3a; }
 .inbox-message-heading { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.inbox-message-heading strong { color: #334c3a; font-size: 12px; line-height: 1.45; }
-.inbox-message-heading time { flex: 0 0 auto; color: #829087; font-size: 10px; }
-.inbox-message p { grid-column: 2; margin: 0; color: #607166; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
-.notification-unread-dot { display: inline-block; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; background: #1aa05a; vertical-align: 1px; }
-.notification-empty { display: grid; min-height: 170px; justify-items: center; align-content: center; gap: 8px; margin: 0; padding: 20px; border: 1px dashed #d4e5d7; border-radius: 14px; color: #688071; background: #f8fcf8; text-align: center; }
-.notification-empty > span { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 14px; color: #168047; background: #e7f5ea; }
-.notification-empty strong { color: #315640; font-size: 14px; }
-.notification-empty small { color: #7c8b80; font-size: 11px; }
+.inbox-message-heading strong { color: #e6f0e7; font-size: 12px; line-height: 1.45; }
+.inbox-message-heading time { flex: 0 0 auto; color: #a9b9ac; font-size: 10px; }
+.inbox-message p { grid-column: 2; margin: 0; color: #c2d0c4; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.notification-unread-dot { display: inline-block; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; background: #a5d6ac; vertical-align: 1px; }
+.notification-empty { display: grid; min-height: 170px; justify-items: center; align-content: center; gap: 8px; margin: 0; padding: 20px; border: 1px dashed #42664b; border-radius: 14px; color: #b5c7b8; background: rgb(16 39 26 / 72%); text-align: center; }
+.notification-empty > span { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 14px; color: #dcecdf; background: #315a3b; }
+.notification-empty strong { color: #e4f0e6; font-size: 14px; }
+.notification-empty small { color: #b4c7b8; font-size: 11px; }
+.notification-status { margin: 0; padding: 20px; border: 1px solid #344d39; border-radius: 12px; color: #c2d0c4; background: #14281a; }
 .inbox-bet, .inbox-lottery, .inbox-game { border-left-color: #e7a52a; }
 .transaction-list { max-height: 420px; overflow-y: auto; }
 .transaction-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border-radius: 11px; background: #edf5ef; }
@@ -3520,7 +3486,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .wallet-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .wallet-tabs button { padding: 10px; border: 1px solid #d5ded6; border-radius: 10px; color: #536358; background: white; }
 .wallet-tabs button.active { border-color: #25a95b; color: #1b7d43; background: #e7f4e9; font-weight: 750; }
-.auth-form input { width: 100%; padding: 12px 14px; border: 1px solid #d5ded6; border-radius: 12px; outline-color: #27a95c; }
+.auth-form input { width: 100%; padding: 12px 14px; border: 1px solid #d5ded6; border-radius: 12px; color: #273f31; background: #fff; color-scheme: light; outline-color: #27a95c; }
+.auth-form input::placeholder { color: #89968d; opacity: 1; }
 .primary-button:disabled { opacity: .65; cursor: wait; }
 .auth-form select, .kyc-form select, .kyc-form input { width: 100%; min-height: 42px; padding: 10px 12px; border: 1px solid #d5ded6; border-radius: 10px; background: white; outline-color: #27a95c; }
 .google-signin-button { display: flex; width: 100%; min-height: 44px; align-items: center; justify-content: center; }
@@ -3602,6 +3569,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .hero-with-art .hero-copy { max-width: 64%; }
   .hero-art { width: 48%; object-position: center; }
   .welcome-banner { min-height: 0; }
+  .homepage-custom-banner { max-height: none; }
   .categories { min-height: 118px; padding-right: 18px; padding-left: 18px; }
   .category-list { justify-content: center; gap: clamp(12px, 2vw, 28px); }
   .category { max-width: 140px; min-width: 80px; }
@@ -3839,8 +3807,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .wallet-payment-title h2 { margin: 0; color: #233d2d; font-size: 19px; font-weight: 750; }
 .wallet-back-button { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border: 1px solid #e0e9e1; border-radius: 50%; color: #4a6251; background: #f7faf7; }
 .wallet-back-button:hover { border-color: #bfdbc5; color: #168548; background: #eef7f0; }
-.wallet-switch-button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 5px; padding: 7px 11px; border: 1px solid #dfe9e1; border-radius: 10px; color: #437151; background: #f7faf7; font-size: 12px; font-weight: 700; }
-.wallet-switch-button:hover { border-color: #b8d9c0; color: #168548; background: #eef7f0; }
 .wallet-deposit-methods { display: grid; gap: 8px; }
 .wallet-deposit-method-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .wallet-deposit-method-options button { display: flex; min-width: 0; min-height: 54px; align-items: center; justify-content: center; gap: 8px; padding: 9px 10px; border: 1px solid #dfe9e1; border-radius: 12px; color: #5b6d60; background: #fbfdfb; font-size: 12px; font-weight: 700; transition: border-color .16s ease, background .16s ease, color .16s ease; }
@@ -3988,6 +3954,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .bonus-code-preview p, .bonus-code-preview small { margin: 0; color: #718076; font-size: 11px; line-height: 1.5; }
 .referral-card { display: grid; align-items: stretch; justify-content: stretch; gap: 12px; }
 .referral-card-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.referral-list-heading { display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid #e7eee8; }
+.referral-list-heading strong { color: #324d3b; font-size: 13px; }
+.referral-list-heading span { color: #7b887f; font-size: 11px; }
 .referral-reward-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: #748077; font-size: 11px; }
 .referral-reward-summary strong { color: #187640; font-size: 12px; }
 .referral-code-box { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 11px 13px; border: 1px dashed #b6d8bf; border-radius: 12px; background: #f5fbf6; }
@@ -4432,10 +4401,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 640px) {
   .page-section {
     padding-bottom: 20px;
-  }
-  .promotions-intro-card {
-    min-height: 76px;
-    padding: 18px;
   }
   .promotion-feature-card {
     display: grid;

@@ -622,10 +622,35 @@
         </section>
         <section class="settings-control-group">
           <div class="promotion-admin-heading">
-            <div><h3>Homepage display</h3><p>The jackpot value is a manually configured display amount and is not connected to a live pool or settlement system.</p></div>
+            <div><h3>Homepage display</h3><p>Manage the public homepage hero. The jackpot is a manually configured display amount, not a live pool; signed-in members continue to see active member offers.</p></div>
           </div>
           <div class="settings-control-grid">
             <label>Jackpot display amount (Rs.)<input v-model.number="platformSettings.jackpotAmount" type="number" min="0" max="1000000000000" step="0.01" required /></label>
+            <label class="switch-row"><span><strong>Enable custom homepage banner</strong><small>Show when no signed-in member offer banner is active</small></span><input v-model="platformSettings.homepageBanner.active" type="checkbox" /></label>
+            <label>Banner headline<input v-model.trim="platformSettings.homepageBanner.title" maxlength="100" placeholder="Welcome to B9 Games" /></label>
+            <label>Button label<input v-model.trim="platformSettings.homepageBanner.buttonLabel" maxlength="32" placeholder="Explore games" /></label>
+            <label class="settings-control-wide">Banner description<textarea v-model.trim="platformSettings.homepageBanner.description" maxlength="300" rows="2" placeholder="A short message for homepage visitors"></textarea></label>
+            <label>Button destination
+              <select v-model="platformSettings.homepageBanner.buttonLink">
+                <option value="/games">Games</option>
+                <option value="/wallet">Wallet</option>
+                <option value="/promotions">Promotions</option>
+                <option value="/rewards">Rewards</option>
+              </select>
+            </label>
+            <label class="promotion-banner-upload settings-control-wide">Banner artwork (JPEG, PNG, or WebP; up to 5 MB)
+              <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="homepageBannerUploading" @change="uploadHomepageBanner" />
+              <small v-if="homepageBannerUploading">Uploading homepage banner...</small>
+              <img v-if="homepageBannerPreview()" :src="homepageBannerPreview()" alt="Homepage banner preview" />
+            </label>
+            <button
+              v-if="platformSettings.homepageBanner.bannerImage || homepageBannerPreviewUrl"
+              type="button"
+              class="promotion-banner-remove settings-control-wide"
+              :disabled="homepageBannerUploading"
+              @click="removeHomepageBanner"
+            >Remove banner</button>
+            <label class="switch-row settings-control-wide"><span><strong>Artwork includes all banner text</strong><small>Use for a finished creative; otherwise the headline and button are overlaid</small></span><input v-model="platformSettings.homepageBanner.bannerIncludesText" type="checkbox" /></label>
           </div>
         </section>
         <button class="primary-button" type="submit" :disabled="platformSettingsSaving">{{ platformSettingsSaving ? "Saving settings…" : "Save platform settings" }}</button>
@@ -706,6 +731,7 @@ type Transaction = { id: string; username: string; type: string; amount: number;
 type AuditLog = { id: string; action: string; target: string; details: string; createdAt: string };
 type SupportTicket = { id: string; username: string; subject: string; message: string; status: string; reply: string; createdAt: string; updatedAt: string };
 type Promotion = { id: string; title: string; description: string; reward: string; terms: string; active: boolean; bannerImage: string; bannerIncludesText: boolean };
+type HomepageBanner = { active: boolean; title: string; description: string; buttonLabel: string; buttonLink: string; bannerImage: string; bannerIncludesText: boolean };
 type BonusCode = { id: string; code: string; amount: number; terms: string; expiresAt: string | null; maxRedemptions: number | null; active: boolean; createdAt: string; redemptionCount: number };
 type RewardSettings = {
   dailyEnabled: boolean; dailyRewards: number[]; dailyResetTimezone: string; streakResetOnMissedDay: boolean;
@@ -832,6 +858,15 @@ const platformSettings = ref({
   walletNumber: "",
   paymentInstructions: "",
   jackpotAmount: 10799004.2,
+  homepageBanner: {
+    active: false,
+    title: "",
+    description: "",
+    buttonLabel: "Explore games",
+    buttonLink: "/games",
+    bannerImage: "",
+    bannerIncludesText: false,
+  } as HomepageBanner,
   promotions: [] as Promotion[],
 });
 const bonusCodes = ref<BonusCode[]>([]);
@@ -857,6 +892,8 @@ const settingsMessage = ref("");
 const platformSettingsSaving = ref(false);
 const bannerUploading = ref<Record<string, boolean>>({});
 const bannerPreviewUrls = ref<Record<string, string>>({});
+const homepageBannerUploading = ref(false);
+const homepageBannerPreviewUrl = ref("");
 let refreshTimer: number | undefined;
 
 watch([managedGameSearch, managedProviderFilter, managedCategoryFilter], () => {
@@ -1024,6 +1061,80 @@ async function uploadPromotionBanner(promotion: Promotion, event: Event): Promis
     settingsMessage.value = caught instanceof Error ? caught.message : "Could not upload promotion banner";
   } finally {
     bannerUploading.value[promotion.id] = false;
+  }
+}
+
+function homepageBannerPreview(): string {
+  return homepageBannerPreviewUrl.value
+    || (platformSettings.value.homepageBanner.bannerImage ? "/api/platform/homepage-banner" : "");
+}
+
+function clearHomepageBannerPreview(): void {
+  if (homepageBannerPreviewUrl.value.startsWith("blob:")) URL.revokeObjectURL(homepageBannerPreviewUrl.value);
+  homepageBannerPreviewUrl.value = "";
+}
+
+async function uploadHomepageBanner(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  homepageBannerUploading.value = true;
+  settingsMessage.value = "";
+  const form = new FormData();
+  form.append("banner", file);
+  try {
+    const validation = promotionValidationError();
+    if (validation) throw new Error(validation);
+    const saved = await api("/api/admin/settings", {
+      method: "PATCH",
+      body: JSON.stringify(platformSettings.value),
+    });
+    platformSettings.value = {
+      ...platformSettings.value,
+      ...saved.settings,
+      homepageBanner: { ...platformSettings.value.homepageBanner, ...saved.settings.homepageBanner },
+    };
+    const headers = new Headers();
+    if (token.value) headers.set("Authorization", `Bearer ${token.value}`);
+    const response = await fetch("/api/admin/homepage/banner", { method: "POST", headers, body: form });
+    handleUnauthorized(response);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Could not upload homepage banner");
+    clearHomepageBannerPreview();
+    platformSettings.value.homepageBanner.bannerImage = data.homepageBanner.bannerImage;
+    homepageBannerPreviewUrl.value = URL.createObjectURL(file);
+    settingsMessage.value = "Homepage banner uploaded and platform settings saved.";
+  } catch (caught) {
+    settingsMessage.value = caught instanceof Error ? caught.message : "Could not upload homepage banner";
+  } finally {
+    homepageBannerUploading.value = false;
+  }
+}
+
+async function removeHomepageBanner(): Promise<void> {
+  if (homepageBannerUploading.value) return;
+  const previousImage = platformSettings.value.homepageBanner.bannerImage;
+  homepageBannerUploading.value = true;
+  settingsMessage.value = "";
+  try {
+    platformSettings.value.homepageBanner.bannerImage = "";
+    const saved = await api("/api/admin/settings", {
+      method: "PATCH",
+      body: JSON.stringify(platformSettings.value),
+    });
+    platformSettings.value = {
+      ...platformSettings.value,
+      ...saved.settings,
+      homepageBanner: { ...platformSettings.value.homepageBanner, ...saved.settings.homepageBanner },
+    };
+    clearHomepageBannerPreview();
+    settingsMessage.value = "Homepage banner removed.";
+  } catch (caught) {
+    platformSettings.value.homepageBanner.bannerImage = previousImage;
+    settingsMessage.value = caught instanceof Error ? caught.message : "Could not remove homepage banner";
+  } finally {
+    homepageBannerUploading.value = false;
   }
 }
 
@@ -1997,6 +2108,7 @@ onUnmounted(() => {
   for (const preview of Object.values(bannerPreviewUrls.value)) {
     if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
   }
+  clearHomepageBannerPreview();
 });
 </script>
 
@@ -2178,8 +2290,8 @@ body { margin: 0; }
 .settings-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
 .settings-form label { display: flex; flex-direction: column; gap: 7px; color: #5a685f; font-size: 12px; font-weight: 750; }
 .settings-form label:first-child, .settings-form .switch-row, .settings-form .primary-button { grid-column: 1 / -1; }
-.settings-form input, .settings-form textarea { width: 100%; border: 1px solid #e1e8e4; border-radius: 9px; background: white; padding: 10px; font-family: inherit; }
-.settings-form input { height: 42px; }
+.settings-form input, .settings-form textarea, .settings-form select { width: 100%; border: 1px solid #e1e8e4; border-radius: 9px; background: white; padding: 10px; font-family: inherit; }
+.settings-form input, .settings-form select { height: 42px; }
 .settings-form textarea { resize: vertical; }
 .settings-control-group { display: grid; grid-column: 1 / -1; gap: 12px; padding: 16px; border: 1px solid #e5ece7; border-radius: 14px; background: #fbfdfb; }
 .settings-control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -2462,8 +2574,8 @@ body { margin: 0; }
 .row:hover, .kyc-row:hover, .activity-row:hover { border-color: #cfe0ee; background: #f8fbff; box-shadow: 0 5px 16px rgb(34 70 102 / 5%); }
 .row strong, .kyc-row strong, .ticket-copy strong, .activity-row strong { color: #20354a; }
 .row span, .kyc-row span, .activity-row span, .activity-row time, .ticket-copy span { color: #718497; }
-.toolbar input, .toolbar select, .result-form input, .result-form select, .ticket-row select, .settings-form input, .settings-form textarea { border-color: #dce5ed; transition: border-color .16s ease, box-shadow .16s ease; }
-.toolbar input:focus, .toolbar select:focus, .result-form input:focus, .result-form select:focus, .ticket-row select:focus, .settings-form input:focus, .settings-form textarea:focus { border-color: #5aa8dc; box-shadow: 0 0 0 3px rgb(55 145 206 / 12%); outline: none; }
+.toolbar input, .toolbar select, .result-form input, .result-form select, .ticket-row select, .settings-form input, .settings-form textarea, .settings-form select { border-color: #dce5ed; transition: border-color .16s ease, box-shadow .16s ease; }
+.toolbar input:focus, .toolbar select:focus, .result-form input:focus, .result-form select:focus, .ticket-row select:focus, .settings-form input:focus, .settings-form textarea:focus, .settings-form select:focus { border-color: #5aa8dc; box-shadow: 0 0 0 3px rgb(55 145 206 / 12%); outline: none; }
 .row button, .kyc-row button, .documents button, .result-form button, .ticket-row button, .quick-actions button { background: linear-gradient(135deg, #18aa70, #087b55) !important; box-shadow: 0 4px 11px rgb(8 123 75 / 14%); transition: transform .15s ease, box-shadow .15s ease, filter .15s ease; }
 .row button:hover, .kyc-row button:hover, .documents button:hover, .result-form button:hover, .ticket-row button:hover, .quick-actions button:hover { transform: translateY(-1px); box-shadow: 0 7px 15px rgb(8 123 75 / 20%); filter: saturate(1.08); }
 .row .reject, .kyc-row .reject, .actions .reject, .reject { color: #fff; background: linear-gradient(135deg, #ed7770, #c54652) !important; box-shadow: 0 4px 11px rgb(197 70 82 / 14%); }

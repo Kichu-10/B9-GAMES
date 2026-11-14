@@ -27,12 +27,14 @@ const userId = randomUUID();
 const secondUserId = randomUUID();
 const thirdUserId = randomUUID();
 const fourthUserId = randomUUID();
+const fifthUserId = randomUUID();
 const adminId = randomUUID();
 const tokenFor = (id) => jwt.sign({ id }, process.env.JWT_SECRET);
 const userToken = tokenFor(userId);
 const secondUserToken = tokenFor(secondUserId);
 const thirdUserToken = tokenFor(thirdUserId);
 const fourthUserToken = tokenFor(fourthUserId);
+const fifthUserToken = tokenFor(fifthUserId);
 const adminToken = tokenFor(adminId);
 
 function addUser(id, username, role = "user") {
@@ -42,11 +44,22 @@ function addUser(id, username, role = "user") {
   `).run(id, username, role, new Date().toISOString(), `B9${id.replaceAll("-", "").slice(0, 10).toUpperCase()}`);
 }
 
+function addApprovedDeposit(id, username, amountCents = 50000) {
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO transactions (id, user_id, username, type, amount_cents, status, created_at, processed_at)
+    VALUES (?, ?, ?, 'deposit', ?, 'approved', ?, ?)
+  `).run(randomUUID(), id, username, amountCents, now, now);
+}
+
 addUser(userId, "reward-user");
 addUser(secondUserId, "second-user");
 addUser(thirdUserId, "third-user");
 addUser(fourthUserId, "fourth-user");
+addUser(fifthUserId, "fifth-user");
 addUser(adminId, "reward-admin", "admin");
+addApprovedDeposit(thirdUserId, "third-user");
+addApprovedDeposit(fourthUserId, "fourth-user");
 db.prepare(`
   INSERT INTO transactions (id, user_id, username, type, amount_cents, status, created_at, processed_at)
   VALUES (?, ?, 'reward-user', 'deposit', 500000, 'approved', ?, ?)
@@ -55,6 +68,54 @@ db.prepare(`
 after(() => {
   db.close();
   fs.rmSync(tempDir, { recursive: true, force: true });
+});
+
+test("daily check-in requires an approved deposit of at least 500", async () => {
+  const initialDashboard = await request(app)
+    .get("/api/rewards")
+    .set("Authorization", `Bearer ${fifthUserToken}`)
+    .expect(200);
+  assert.equal(initialDashboard.body.daily.minimumDeposit, 500);
+  assert.equal(initialDashboard.body.daily.depositEligible, false);
+  assert.equal(initialDashboard.body.daily.claimable, false);
+  await request(app)
+    .post("/api/rewards/daily/claim")
+    .set("Authorization", `Bearer ${fifthUserToken}`)
+    .send({})
+    .expect(403);
+
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO transactions (id, user_id, username, type, amount_cents, status, created_at, processed_at)
+    VALUES (?, ?, 'fifth-user', 'deposit', ?, 'pending', ?, NULL)
+  `).run(randomUUID(), fifthUserId, 50000, now);
+  db.prepare(`
+    INSERT INTO transactions (id, user_id, username, type, amount_cents, status, created_at, processed_at)
+    VALUES (?, ?, 'fifth-user', 'deposit', ?, 'approved', ?, ?)
+  `).run(randomUUID(), fifthUserId, 49900, now, now);
+
+  const belowMinimumDashboard = await request(app)
+    .get("/api/rewards")
+    .set("Authorization", `Bearer ${fifthUserToken}`)
+    .expect(200);
+  assert.equal(belowMinimumDashboard.body.daily.depositEligible, false);
+  assert.equal(belowMinimumDashboard.body.daily.claimable, false);
+
+  db.prepare(`
+    INSERT INTO transactions (id, user_id, username, type, amount_cents, status, created_at, processed_at)
+    VALUES (?, ?, 'fifth-user', 'deposit', ?, 'approved', ?, ?)
+  `).run(randomUUID(), fifthUserId, 50000, now, now);
+  const eligibleDashboard = await request(app)
+    .get("/api/rewards")
+    .set("Authorization", `Bearer ${fifthUserToken}`)
+    .expect(200);
+  assert.equal(eligibleDashboard.body.daily.depositEligible, true);
+  assert.equal(eligibleDashboard.body.daily.claimable, true);
+  await request(app)
+    .post("/api/rewards/daily/claim")
+    .set("Authorization", `Bearer ${fifthUserToken}`)
+    .send({})
+    .expect(201);
 });
 
 test("daily claims, VIP progress, bonus code limits, and admin controls are enforced", async () => {

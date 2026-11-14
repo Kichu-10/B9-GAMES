@@ -147,6 +147,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id);
   CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
   CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
+  CREATE INDEX IF NOT EXISTS idx_transactions_user_type_status_processed
+    ON transactions(user_id, type, status, processed_at, amount_cents);
 
   CREATE TABLE IF NOT EXISTS kyc_documents (
     user_id TEXT NOT NULL, kind TEXT NOT NULL, file_path TEXT NOT NULL,
@@ -198,7 +200,8 @@ db.exec(`
     wallet_name TEXT NOT NULL DEFAULT '',
     wallet_number TEXT NOT NULL DEFAULT '',
     payment_instructions TEXT NOT NULL DEFAULT '',
-    jackpot_display_cents INTEGER NOT NULL DEFAULT 1079900420
+    jackpot_display_cents INTEGER NOT NULL DEFAULT 1079900420,
+    homepage_banner TEXT NOT NULL DEFAULT '{}'
   );
   CREATE TABLE IF NOT EXISTS app_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS ledger_entries (
@@ -292,6 +295,7 @@ for (const [column, definition] of Object.entries({
   wallet_number: "TEXT NOT NULL DEFAULT ''",
   payment_instructions: "TEXT NOT NULL DEFAULT ''",
   jackpot_display_cents: "INTEGER NOT NULL DEFAULT 1079900420",
+  homepage_banner: "TEXT NOT NULL DEFAULT '{}'",
 })) {
   if (!platformSettingColumns.includes(column)) {
     db.exec(`ALTER TABLE platform_settings ADD COLUMN ${column} ${definition};`);
@@ -408,6 +412,16 @@ export function readPlatformSettings() {
     walletNumber: settings.wallet_number,
     paymentInstructions: settings.payment_instructions,
     jackpotAmount: dollars(settings.jackpot_display_cents),
+    homepageBanner: {
+      active: false,
+      title: "",
+      description: "",
+      buttonLabel: "",
+      buttonLink: "/games",
+      bannerImage: "",
+      bannerIncludesText: false,
+      ...JSON.parse(settings.homepage_banner || "{}"),
+    },
   };
 }
 
@@ -596,9 +610,9 @@ export function writeDb(source, referralSignup = null) {
       INSERT INTO platform_settings (
         id, announcement, maintenance_mode, support_email, support_phone, support_hours, promotions,
         bank_name, account_name, account_number, iban, upi_id, wallet_name, wallet_number,
-        payment_instructions, jackpot_display_cents
+        payment_instructions, jackpot_display_cents, homepage_banner
       )
-      VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       String(settings.announcement || ""),
       bool(settings.maintenanceMode),
@@ -615,6 +629,7 @@ export function writeDb(source, referralSignup = null) {
       String(settings.walletNumber || ""),
       String(settings.paymentInstructions || ""),
       cents(settings.jackpotAmount ?? 10799004.2),
+      JSON.stringify(settings.homepageBanner || {}),
     );
     db.exec(`
       DELETE FROM audit_logs

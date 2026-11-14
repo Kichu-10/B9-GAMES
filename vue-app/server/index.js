@@ -87,6 +87,7 @@ app.get("/api/payment/details", (_req, res) => {
 
 app.get("/api/platform/settings", (_req, res) => {
   const settings = readPlatformSettings();
+  const homepageBanner = settings.homepageBanner || {};
   res.json({
     announcement: settings.announcement || "Welcome to B9 Game. Play responsibly and review applicable terms.",
     maintenanceMode: Boolean(settings.maintenanceMode),
@@ -94,11 +95,34 @@ app.get("/api/platform/settings", (_req, res) => {
     supportPhone: settings.supportPhone || "",
     supportHours: settings.supportHours || "24/7",
     jackpotAmount: settings.jackpotAmount ?? 10799004.2,
+    homepageBanner: {
+      active: Boolean(homepageBanner.active),
+      title: homepageBanner.title || "",
+      description: homepageBanner.description || "",
+      buttonLabel: homepageBanner.buttonLabel || "",
+      buttonLink: homepageBanner.buttonLink || "/games",
+      imageUrl: homepageBanner.bannerImage ? "/api/platform/homepage-banner" : "",
+      bannerIncludesText: Boolean(homepageBanner.bannerIncludesText),
+    },
     googleClientId: process.env.GOOGLE_CLIENT_ID || "",
   });
 });
 const uploadDir = path.join(__dirname, "uploads");
 fs.mkdirSync(uploadDir, { recursive: true });
+app.get("/api/platform/homepage-banner", (_req, res) => {
+  const filename = readPlatformSettings().homepageBanner?.bannerImage || "";
+  if (!/^homepage-[a-f0-9-]+\.(jpg|png|webp)$/i.test(filename)) {
+    return res.status(404).json({ error: "Homepage banner not found" });
+  }
+  const safeFilename = path.basename(filename);
+  const imagePath = path.join(uploadDir, "homepage-banners", safeFilename);
+  if (!fs.existsSync(imagePath)) return res.status(404).json({ error: "Homepage banner not found" });
+  res.setHeader("Cache-Control", "private, no-store");
+  res.type(path.extname(safeFilename));
+  res.sendFile(imagePath, { dotfiles: "deny" }, (error) => {
+    if (error && !res.headersSent) res.status(error.statusCode || 500).json({ error: "Could not load homepage banner" });
+  });
+});
 app.use("/api/auth", createAuthRouter());
 app.use("/api/auth", createProfileRouter(uploadDir));
 app.use("/api/wallet", createWalletRouter(uploadDir));

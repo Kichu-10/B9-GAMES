@@ -506,9 +506,10 @@ CREATE TABLE platform_settings (
     support_email TEXT NOT NULL DEFAULT '',
     support_phone TEXT NOT NULL DEFAULT '',
     support_hours TEXT NOT NULL DEFAULT '',
-    promotions TEXT NOT NULL DEFAULT '[]'
+    promotions TEXT NOT NULL DEFAULT '[]',
+    homepage_banner TEXT NOT NULL DEFAULT '{}'
   );
-INSERT INTO "platform_settings" ("id", "announcement", "maintenance_mode", "support_email", "support_phone", "support_hours", "promotions") VALUES (1, 'Welcome to B9 Game. Play responsibly and review applicable terms.', 0, '', '', '24/7', '[{"id":"promotion-1794329063936-7wbz8h","title":"b9 game","description":"hfjhg","reward":"hjghj","terms":"jhgjh","bannerImage":"promotion-4c342e2f-edb5-4949-ace6-6151f8723df5.webp","bannerIncludesText":true,"active":true},{"id":"promotion-1794329101551-7pnbhk","title":"fghgjg","description":"fhg","reward":"jghgh","terms":"gfhgf","bannerImage":"promotion-412a6ad8-fd10-4c66-b462-c922289f97fa.png","bannerIncludesText":true,"active":true},{"id":"promotion-1794329161068-c40xzq","title":"B9 Game","description":"hjghj","reward":"ghj","terms":"hgfhgf","bannerImage":"promotion-de5b0744-f833-4a76-b88c-8dd5bec042e8.webp","bannerIncludesText":true,"active":true}]');
+INSERT INTO "platform_settings" ("id", "announcement", "maintenance_mode", "support_email", "support_phone", "support_hours", "promotions", "homepage_banner") VALUES (1, 'Welcome to B9 Game. Play responsibly and review applicable terms.', 0, '', '', '24/7', '[{"id":"promotion-1794329063936-7wbz8h","title":"b9 game","description":"hfjhg","reward":"hjghj","terms":"jhgjh","bannerImage":"promotion-4c342e2f-edb5-4949-ace6-6151f8723df5.webp","bannerIncludesText":true,"active":true},{"id":"promotion-1794329101551-7pnbhk","title":"fghgjg","description":"fhg","reward":"jghgh","terms":"gfhgf","bannerImage":"promotion-412a6ad8-fd10-4c66-b462-c922289f97fa.png","bannerIncludesText":true,"active":true},{"id":"promotion-1794329161068-c40xzq","title":"B9 Game","description":"hjghj","reward":"ghj","terms":"hgfhgf","bannerImage":"promotion-de5b0744-f833-4a76-b88c-8dd5bec042e8.webp","bannerIncludesText":true,"active":true}]', '{}');
 
 DROP TABLE IF EXISTS "support_tickets";
 CREATE TABLE support_tickets (
@@ -557,6 +558,7 @@ CREATE INDEX idx_game_wallet_transfers_pending
     WHERE status = 'pending';
 CREATE INDEX idx_game_wallet_transfers_status ON game_wallet_transfers(status);
 CREATE INDEX idx_game_wallet_transfers_user ON game_wallet_transfers(user_id);
+CREATE INDEX idx_game_results_user_created ON game_results(user_id, created_at DESC);
 CREATE INDEX idx_ledger_transaction ON ledger_entries(transaction_id);
 CREATE INDEX idx_ledger_user ON ledger_entries(user_id);
 CREATE INDEX idx_managed_games_public
@@ -566,6 +568,8 @@ CREATE INDEX idx_notifications_user_created
 CREATE INDEX idx_transactions_status ON transactions(status);
 CREATE INDEX idx_transactions_type ON transactions(type);
 CREATE INDEX idx_transactions_user ON transactions(user_id);
+CREATE INDEX idx_transactions_user_type_status_processed
+    ON transactions(user_id, type, status, processed_at, amount_cents);
 CREATE INDEX idx_users_role ON users(role);
 CREATE UNIQUE INDEX idx_users_username_lower ON users(lower(username));
 

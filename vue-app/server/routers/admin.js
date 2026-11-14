@@ -122,6 +122,15 @@ const settingsSchema = z.object({
   walletNumber: z.string().trim().max(80).default(""),
   paymentInstructions: z.string().trim().max(1000).default(""),
   jackpotAmount: z.number().finite().min(0).max(1000000000000).default(10799004.2),
+  homepageBanner: z.object({
+    active: z.boolean().default(false),
+    title: z.string().trim().max(100).default(""),
+    description: z.string().trim().max(300).default(""),
+    buttonLabel: z.string().trim().max(32).default(""),
+    buttonLink: z.enum(["/games", "/wallet", "/promotions", "/rewards"]).default("/games"),
+    bannerImage: z.string().trim().max(100).regex(/^(|homepage-[a-f0-9-]+\.(jpg|png|webp))$/i).default(""),
+    bannerIncludesText: z.boolean().default(false),
+  }).default({}),
   promotions: z.array(z.object({
     id: z.string().trim().min(1).max(80),
     title: z.string().trim().min(1).max(100),
@@ -256,9 +265,11 @@ function identifyPromotionImage(buffer) {
 export function createAdminRouter(uploadDir) {
   const router = express.Router();
   const promotionImageDir = path.join(uploadDir, "promotion-banners");
+  const homepageImageDir = path.join(uploadDir, "homepage-banners");
   const gameThumbnailDir = path.join(uploadDir, "game-thumbnails");
   const providerLogoDir = path.join(uploadDir, "provider-logos");
   fs.mkdirSync(promotionImageDir, { recursive: true });
+  fs.mkdirSync(homepageImageDir, { recursive: true });
   fs.mkdirSync(gameThumbnailDir, { recursive: true });
   fs.mkdirSync(providerLogoDir, { recursive: true });
   const uploadPromotionImage = multer({
@@ -703,6 +714,56 @@ export function createAdminRouter(uploadDir) {
     res.json({ promotion });
   });
 
+  router.post("/homepage/banner", (req, res, next) => {
+    uploadPromotionImage.single("banner")(req, res, (error) => {
+      if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ error: "Homepage banners must be 5 MB or smaller" });
+      }
+      if (error) return next(error);
+      next();
+    });
+  }, (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "Upload a valid JPEG, PNG, or WebP banner image" });
+    const extension = identifyPromotionImage(req.file.buffer);
+    if (!extension) return res.status(400).json({ error: "The banner is not a valid JPEG, PNG, or WebP image" });
+
+    const db = readDb();
+    db.platformSettings ||= {};
+    db.platformSettings.homepageBanner ||= {
+      active: false,
+      title: "",
+      description: "",
+      buttonLabel: "",
+      buttonLink: "/games",
+      bannerImage: "",
+      bannerIncludesText: false,
+    };
+    const banner = db.platformSettings.homepageBanner;
+    const previousImage = banner.bannerImage;
+    banner.bannerImage = `homepage-${randomUUID()}.${extension}`;
+    const imagePath = path.join(homepageImageDir, banner.bannerImage);
+    fs.writeFileSync(imagePath, req.file.buffer, { flag: "wx" });
+    try {
+      const admin = db.users.find((item) => item.id === req.user.id);
+      addAudit(db, admin?.username || "admin", "HOMEPAGE_BANNER_UPLOADED", "Homepage banner", "Homepage banner artwork updated");
+      writeDb(db);
+    } catch (error) {
+      fs.rmSync(imagePath, { force: true });
+      throw error;
+    }
+
+    if (previousImage && previousImage !== banner.bannerImage) {
+      try {
+        fs.rmSync(path.join(homepageImageDir, path.basename(previousImage)), { force: true });
+      } catch (error) {
+        logger.warn("homepage_banner_cleanup_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    res.json({ homepageBanner: banner });
+  });
+
   router.get("/game-management", (_req, res) => {
     const providers = listManagedProviders();
     const games = listManagedGames();
@@ -1133,6 +1194,7 @@ export function createAdminRouter(uploadDir) {
     const previousBannerImages = (db.platformSettings?.promotions || [])
       .map((promotion) => promotion.bannerImage)
       .filter(Boolean);
+    const previousHomepageImage = db.platformSettings?.homepageBanner?.bannerImage || "";
     db.platformSettings = req.body;
     const admin = db.users.find((item) => item.id === req.user.id);
     addAudit(db, admin?.username || "admin", "SETTINGS_UPDATED", "Platform settings", "Platform content, support, payment, and display settings updated");
@@ -1145,6 +1207,15 @@ export function createAdminRouter(uploadDir) {
       } catch (error) {
         logger.warn("promotion_banner_cleanup_failed", {
           filename: path.basename(filename),
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    if (previousHomepageImage && previousHomepageImage !== db.platformSettings.homepageBanner.bannerImage) {
+      try {
+        fs.rmSync(path.join(homepageImageDir, path.basename(previousHomepageImage)), { force: true });
+      } catch (error) {
+        logger.warn("homepage_banner_cleanup_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
       }
