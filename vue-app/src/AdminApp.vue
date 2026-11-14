@@ -1088,6 +1088,9 @@ async function persistHomepageBannerSettings(): Promise<void> {
     ...saved.homepageBanner,
   };
 }
+
+async function saveHomepageBannerSettings(): Promise<void> {
+  if (homepageBannerSaving.value || homepageBannerUploading.value) return;
 async function uploadHomepageBanner(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
