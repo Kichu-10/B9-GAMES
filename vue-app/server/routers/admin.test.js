@@ -113,6 +113,6 @@ test("admin can save and upload homepage banner content", async () => {
     .set("Authorization", `Bearer ${adminToken}`)
     .send(homepageBanner)
     .expect(200);
-  assert.deepEqual(removed.body.settings.homepageBanner, homepageBanner);
+  assert.deepEqual(removed.body.homepageBanner, homepageBanner);
   assert.equal(fs.existsSync(path.join(tempDir, "uploads", "homepage-banners", filename)), false);
 });

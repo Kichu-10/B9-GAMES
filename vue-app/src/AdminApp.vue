@@ -643,6 +643,8 @@
               <small v-if="homepageBannerUploading">Uploading homepage banner...</small>
               <img v-if="homepageBannerPreview()" :src="homepageBannerPreview()" alt="Homepage banner preview" />
             </label>
+            <button type="button" class="secondary settings-control-wide" :disabled="homepageBannerSaving || homepageBannerUploading" @click="saveHomepageBannerSettings">
+              {{ homepageBannerSaving ? "Saving homepage banner…" : "Save homepage banner settings" }}
             <button
               v-if="platformSettings.homepageBanner.bannerImage || homepageBannerPreviewUrl"
               type="button"
