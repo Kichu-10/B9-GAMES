@@ -779,6 +779,8 @@ export function createAdminRouter(uploadDir) {
     writeDb(db);
     if (previousImage && previousImage !== req.body.bannerImage) {
       removeHomepageBannerImage(previousImage);
+    }
+    res.json({ homepageBanner: req.body });
   });
 
   router.get("/game-management", (_req, res) => {
@@ -1229,7 +1231,7 @@ export function createAdminRouter(uploadDir) {
       }
     }
     if (previousHomepageImage && previousHomepageImage !== db.platformSettings.homepageBanner.bannerImage) {
-      try {
+      removeHomepageBannerImage(previousHomepageImage);
         fs.rmSync(path.join(homepageImageDir, path.basename(previousHomepageImage)), { force: true });
       } catch (error) {
         logger.warn("homepage_banner_cleanup_failed", {
