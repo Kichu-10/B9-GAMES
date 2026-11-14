@@ -645,6 +645,7 @@
             </label>
             <button type="button" class="secondary settings-control-wide" :disabled="homepageBannerSaving || homepageBannerUploading" @click="saveHomepageBannerSettings">
               {{ homepageBannerSaving ? "Saving homepage banner…" : "Save homepage banner settings" }}
+            </button>
             <button
               v-if="platformSettings.homepageBanner.bannerImage || homepageBannerPreviewUrl"
               type="button"
@@ -895,6 +896,7 @@ const platformSettingsSaving = ref(false);
 const bannerUploading = ref<Record<string, boolean>>({});
 const bannerPreviewUrls = ref<Record<string, string>>({});
 const homepageBannerUploading = ref(false);
+const homepageBannerSaving = ref(false);
 const homepageBannerPreviewUrl = ref("");
 let refreshTimer: number | undefined;
 
