@@ -275,6 +275,8 @@ export function createAdminRouter(uploadDir) {
   fs.mkdirSync(providerLogoDir, { recursive: true });
   function removeHomepageBannerImage(filename) {
     if (!filename) return;
+    try {
+      fs.rmSync(path.join(homepageImageDir, path.basename(filename)), { force: true });
   const uploadPromotionImage = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024, files: 1 },
