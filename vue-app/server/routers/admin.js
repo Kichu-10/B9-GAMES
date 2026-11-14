@@ -112,6 +112,8 @@ const homepageBannerSchema = z.object({
   title: z.string().trim().max(100).default(""),
   description: z.string().trim().max(300).default(""),
   buttonLabel: z.string().trim().max(32).default(""),
+  buttonLink: z.enum(["/games", "/wallet", "/promotions", "/rewards"]).default("/games"),
+  bannerImage: z.string().trim().max(100).regex(/^(|homepage-[a-f0-9-]+\.(jpg|png|webp))$/i).default(""),
 const settingsSchema = z.object({
   announcement: z.string().trim().max(500).default(""),
   maintenanceMode: z.boolean().default(false),
